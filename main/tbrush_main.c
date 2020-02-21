@@ -13,21 +13,43 @@
  *******************************************************************************
 */
 
+
 #include <stdio.h>
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
-//#include "driver/i2c.h"
+#include "driver/i2c.h"
+#include "../include/imu.h"
+#include "errors.h"
 
-void app_main(void) {
-    printf("Hello world!\n");
 
-    // Prepare I2C configuration for the driver
+#define I2C_MASTER_PORT         
+
+void app_main (void) {
+    esp_err_t err = ESP_OK;
+
+    // // Prepare I2C configuration for the driver
     // i2c_config_t cfg = (i2c_config_t) {
-
+    //     .mode          = I2C_MODE_MASTER,
+    //     .sda_io_num    = 42,
+    //     .scl_io_num    = 39,
+    //     .sda_pullup_en = true,
+    //     .scl_pullup_en = true,
+    //     {
+    //         .master = {
+    //             .clk_speed = APB_CLK_FREQ
+    //         }
+    //     }
     // };
+
+    // // Configure I2C
+    // if ((err = i2c_param_config()) != ESP_OK) {
+    //     ESP_LOGE();
+    // }
+
+    ERR("Oh no!");
 
     /* Print chip information */
     esp_chip_info_t chip_info;
