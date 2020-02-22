@@ -105,6 +105,12 @@ typedef struct {
 #define REG_GYRO_Z_H             0x47
 
 
+// MPU-6050 [R/W] Power management register values (Hex)
+#define REG_PWR_MGMT_1           0x6B
+#define PWR_DEV_RESET            (1 << 6)
+#define PWR_DEV_SLEEP            (1 << 5)
+
+
 // MPU-6050 [R/W] FIFO enable register values (Hex)
 #define REG_FIFO_EN              0x23
 #define FIFO_EN_TEMP             (1 << 6)
@@ -145,25 +151,28 @@ typedef struct {
 */
 
 
-/* @brief Initializes I2C for the ESP on one of the available ports.
+/*\ 
+ *@brief Initializes I2C for the ESP on one of the available ports.
  *        The ESP is configured to be the master.
  * @param sda_pin     Value of the SDA I2C pin
  * @param scl_pin     Value of the SCL I2C pin
  * @param slave_addr  Address of the slave device
  * @return esp_err_t  ESP error value (ESP_OK if none)
-*/
+\*/
 esp_err_t imu_init (uint8_t sda_pin, uint8_t scl_pin, uint8_t slave_addr);
 
 
-/* @brief Issues a request over I2C to read two registers from the IMU
-*/
-esp_err_t i2c_request (uint8_t slave_addr);
+/*\
+ * @brief Wakes or puts the IMU to sleep
+ * @prarm slave_addr  Address of the slave device
+ * @param sleeping    Boolean value. If true, device is put in sleep.
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_set_mode (uint8_t slave_addr, bool sleeping);
 
 
-/* @brief Attempts to read two byte values on the I2C bus from the IMU
- * @param imu_data_p  Pointer to structure to update with IMU data
-*/
-esp_err_t i2c_receive (uint8_t slave_addr, imu_data_t *imu_data_p);
+// Attempts to read the az register of the device at given slave_addr
+esp_err_t i2c_read_az (uint8_t slave_addr);
 
 
 #endif

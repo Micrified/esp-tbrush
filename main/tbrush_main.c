@@ -53,26 +53,21 @@ void app_main (void) {
         return;
     }
 
+    // Wake IMU
+    if ((err = imu_set_mode(I2C_SLAVE_ADDR, false)) != ESP_OK) {
+        return;
+    }
+
     // Read the IMU a bit
     imu_data_t data;
-    for (int i = 0; i < 1000; ++i) {
+    while (1) {
 
-        // Issue a request
-        if ((err = i2c_request(I2C_SLAVE_ADDR)) != ESP_OK) {
-            break;
+        // Print az
+        if (i2c_read_az(I2C_SLAVE_ADDR) != ESP_OK) {
+            ERR("Bad read!");
         }
 
-        ESP_LOGI("APP", "... recieving");
-
-        // Receive back data
-        if ((err = i2c_receive(I2C_SLAVE_ADDR, &data)) != ESP_OK) {
-            break;
-        }
-
-        // Print results (signed/unsigned?)
-        printf("az = %d\n", (int16_t)data.az);
-
-        //vTaskDelay(portTICK_PERIOD_MS);
+        vTaskDelay(portTICK_PERIOD_MS);
     }
 
 
