@@ -58,6 +58,12 @@ void app_main (void) {
         return;
     }
 
+    // Configure accelerometer range
+    if ((err = imu_cfg_accelerometer(I2C_SLAVE_ADDR, 
+        ACCEL_CFG_RANGE_8G)) != ESP_OK) {
+        return;
+    }
+
     // Read the IMU a bit
     imu_data_t data;
     while (1) {
@@ -67,7 +73,7 @@ void app_main (void) {
             ERR("Bad read!");
         }
 
-        vTaskDelay(portTICK_PERIOD_MS);
+        //vTaskDelay(portTICK_PERIOD_MS);
     }
 
 

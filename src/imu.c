@@ -148,6 +148,83 @@ esc:
 }
 
 
+/*\
+ * @brief Performs a write on port I2C_NUM_0 to a register with the given
+ *        register value.
+ * @note  Buffer pointer may be NULL, in which case no data is written
+ * @note  Assumes acknowledgments are required
+ * @param slave_addr  The address of the device to send to
+ * @param reg_addr    The register to write to
+ * @param buffer      The byte buffer to write
+ * @param len         The length to write from the buffer (in bytes)
+ * @return esp_err_t  Returns ESP_OK on success, otherwise error
+\*/
+esp_err_t i2c_write_register (uint8_t slave_addr, uint8_t reg_addr, 
+	uint8_t *buffer, size_t len) {
+	esp_err_t err = ESP_OK;
+
+	// Create the command link
+	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
+
+	// Queue the start signal
+	if ((err = i2c_master_start(cmd)) != ESP_OK) {
+		ERR("I2C master start invalid parameter!");
+		goto esc;
+	}
+
+	// Queue adjusted slave address (op = write)
+	if ((err = i2c_master_write_byte(cmd,
+		(slave_addr << 1) | I2C_MASTER_WRITE, // op bit
+		true)) != ESP_OK) {
+		ERR("I2C master write byte invalid parameter!");
+		goto esc;
+	}
+
+	// Write the register address first
+	if ((err = i2c_master_write(cmd, &reg_addr, 1, true)) != ESP_OK) {
+		ERR("I2C master write (reg) invalid parameter!");
+		goto esc;
+	}
+
+	// Write the data buffer next (only if valid pointer)
+	if (buffer != NULL && 
+		(err = i2c_master_write(cmd, buffer, len, true)) != ESP_OK) {
+		ERR("I2C master write (data) invalid parameters!");
+		goto esc;
+	}
+
+	// Queue the master stop command
+	if ((err = i2c_master_stop(cmd)) != ESP_OK) {
+		ERR("I2C master stop invalid parameter!");
+		goto esc;
+	}
+
+	// Instruct I2C driver to process the queued commands
+	if ((err = i2c_master_cmd_begin(
+		I2C_NUM_0, // Assuming using I2C port zero
+		cmd, 
+		portTICK_PERIOD_MS)) != ESP_OK) {
+		if (err == ESP_ERR_INVALID_ARG) {
+			ERR("I2C master cmd invalid parameter!");
+		} else if (err == ESP_FAIL) {
+			ERR("I2C master cmd no slave ack!");
+		} else if (err == ESP_ERR_INVALID_STATE) {
+			ERR("I2C master cmd driver not installed / not in master mode!");
+		} else {
+			ERR("I2C master cmd operation timeout (bus busy)!");
+		}
+		goto esc;
+	}
+
+esc:
+
+	// Destroy the command link
+	i2c_cmd_link_delete(cmd);
+
+	return err;
+}
+
+
 /*
  *******************************************************************************
  *                        External Function Definitions                        *
@@ -204,63 +281,33 @@ esc:
 
 esp_err_t imu_set_mode (uint8_t slave_addr, bool sleeping) {
 	esp_err_t err = ESP_OK;
-	uint8_t write_buf[2] = {REG_PWR_MGMT_1, 0x0};
+	uint8_t mode = 0x0;
 
 	// Set (or don't) the sleep mode flag
 	if (sleeping) {
-		write_buf[1] |= PWR_DEV_SLEEP;
+		mode |= PWR_DEV_SLEEP;
 	}
 
-	// Create the command link
-	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
-
-	// Queue start signal command
-	if ((err = i2c_master_start(cmd)) != ESP_OK) {
-		ERR("I2C master start invalid parameter!");
-		goto esc;
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_PWR_MGMT_1,
+		&mode, 1)) != ESP_OK) {
+		return err;
 	}
 
-	// Queue the slave address (first byte)
-	if ((err = i2c_master_write_byte(cmd, 
-		(slave_addr << 1) | I2C_MASTER_WRITE,  // op bit
-		true)) != ESP_OK) {
-		ERR("I2C master write byte invalid parameter!");
-		goto esc;
+	return err;
+}
+
+
+esp_err_t imu_cfg_accelerometer (uint8_t slave_addr, accel_cfg_t cfg) {
+	esp_err_t err = ESP_OK;
+	uint8_t mode = 0x0 | cfg;
+
+
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_ACCEL_CFG, 
+		&mode, 1)) != ESP_OK) {
+		return err;
 	}
-
-	// Either sequence of register data values (to read/write from)
-	if ((err = i2c_master_write(cmd, write_buf, 2, true)) != ESP_OK) {
-		ERR("I2C master write invalid parameter!");
-		goto esc;
-	}
-
-	// Queue the the master stop command
-	if ((err = i2c_master_stop(cmd)) != ESP_OK) {
-		ERR("I2C master stop invalid parameter!");
-		goto esc;
-	}
-
-	// Issue the command to the I2C driver
-	if ((err = i2c_master_cmd_begin(I2C_NUM_0, cmd, 
-		portTICK_PERIOD_MS)) != ESP_OK) {
-		if (err == ESP_ERR_INVALID_ARG) {
-			ERR("I2C master cmd invalid parameter!");
-		} else if (err == ESP_FAIL) {
-			ERR("I2C master cmd no slave ack!");
-		} else if (err == ESP_ERR_INVALID_STATE) {
-			ERR("I2C master cmd driver not installed or not in master mode!");
-		} else if (err == ESP_ERR_TIMEOUT) {
-			ERR("I2C master cmd operation timeout (bus busy)!");
-		} else {
-			ERR("I2C master cmd unknown error!");
-		}
-		goto esc;
-	}
-
-esc:
-
-	// Destroy the command link
-	i2c_cmd_link_delete(cmd);
 
 	return err;
 }
@@ -271,7 +318,7 @@ esp_err_t i2c_read_az (uint8_t slave_addr) {
 	uint8_t az_l, az_h;
 
 	// Request register LSB
-	if ((err = i2c_reg_request(slave_addr, REG_GYRO_Z_L)) != ESP_OK) {
+	if ((err = i2c_reg_request(slave_addr, REG_ACCEL_Z_L)) != ESP_OK) {
 		return err;
 	}
 	// Read register LSB
@@ -280,7 +327,7 @@ esp_err_t i2c_read_az (uint8_t slave_addr) {
 	}
 
 	// Request register MSB
-	if ((err = i2c_reg_request(slave_addr, REG_GYRO_Z_H)) != ESP_OK) {
+	if ((err = i2c_reg_request(slave_addr, REG_ACCEL_Z_H)) != ESP_OK) {
 		return err;
 	}
 	// Read register MSB

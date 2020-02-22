@@ -37,6 +37,10 @@ typedef struct {
 } imu_data_t;
 
 
+// Type describing the IMU accelerometer modes
+typedef uint8_t accel_cfg_t;
+
+
 /*
  *******************************************************************************
  *                             Symbolic Constants                              *
@@ -105,6 +109,14 @@ typedef struct {
 #define REG_GYRO_Z_H             0x47
 
 
+// MPU-6050 Accelerometer configuration values (Hex)
+#define REG_ACCEL_CFG            0x1C
+#define ACCEL_CFG_RANGE_2G       0x0
+#define ACCEL_CFG_RANGE_4G       (1 << 2)
+#define ACCEL_CFG_RANGE_8G       (1 << 3)
+#define ACCEL_CFG_RANGE_16G      ((1 << 2) | (1 << 3))
+
+
 // MPU-6050 [R/W] Power management register values (Hex)
 #define REG_PWR_MGMT_1           0x6B
 #define PWR_DEV_RESET            (1 << 6)
@@ -169,6 +181,15 @@ esp_err_t imu_init (uint8_t sda_pin, uint8_t scl_pin, uint8_t slave_addr);
  * @return esp_err_t  ESP error value (ESP_OK if none)
 \*/
 esp_err_t imu_set_mode (uint8_t slave_addr, bool sleeping);
+
+
+/*\
+ * @brief Configures the IMU accelerometer
+ * @param slave_addr  Address of the slave device
+ * @param accel_cfg_t  Accelerometer configuration value
+ * @return esp_err_t   ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_cfg_accelerometer (uint8_t slave_addr, accel_cfg_t cfg);
 
 
 // Attempts to read the az register of the device at given slave_addr
