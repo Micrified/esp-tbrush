@@ -29,5 +29,8 @@
 #define ERR(msg) ESP_LOGE("Error", "%s | %s:%d", (msg), __FILE__, __LINE__)
 
 
+// Message macro including metadata
+#define MSG(msg,at) ESP_LOGI((at), "%s | %s:%d", (msg), __FILE__, __LINE__)
+
 
 #endif
