@@ -313,6 +313,101 @@ esp_err_t imu_cfg_accelerometer (uint8_t slave_addr, accel_cfg_t cfg) {
 }
 
 
+esp_err_t imu_cfg_gyroscope (uint8_t slave_addr, gyro_cfg_t cfg) {
+	esp_err_t err = ESP_OK;
+	uint8_t mode = 0x0 | cfg;
+
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_GYRO_CFG, 
+		&mode, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
+esp_err_t imu_set_fifo (uint8_t slave_addr, uint8_t flags) {
+	esp_err_t err = ESP_OK;
+
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_FIFO_EN,
+		&flags, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
+esp_err_t imu_set_intr (uint8_t slave_addr, uint8_t flags) {
+	esp_err_t err = ESP_OK;
+
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_INTR_EN,
+		&flags, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
+esp_err_t imu_cfg_intr (uint8_t slave_addr, uint8_t flags) {
+	esp_err_t err = ESP_OK;
+
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_INTR_CFG,
+		&flags, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
+esp_err_t imu_clr_intr (uint8_t slave_addr) {
+	esp_err_t err = ESP_OK;
+	uint8_t data = 0x0;
+
+	// Attempt to just read the register (sufficient to clear it)
+	if ((err = i2c_reg_request(slave_addr, REG_INTR_STATUS)) != ESP_OK) {
+		return err;
+	}
+	if ((err = i2c_reg_receive(slave_addr, &data)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
+esp_err_t imu_set_sampling_rate (uint8_t slave_addr, uint8_t divider) {
+	esp_err_t err = ESP_OK;
+
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_SAMPLE_RATE,
+		&divider, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
+esp_err_t imu_set_dlfp (uint8_t slave_addr, uint8_t filter) {
+	esp_err_t err = ESP_OK;
+
+	// Attempt to write to the register
+	if ((err = i2c_write_register(slave_addr, REG_DLFP_CFG,
+		&filter, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
 esp_err_t i2c_read_az (uint8_t slave_addr) {
 	esp_err_t err = ESP_OK;
 	uint8_t az_l, az_h;
@@ -338,6 +433,36 @@ esp_err_t i2c_read_az (uint8_t slave_addr) {
 	// Print z-axis value
 	int16_t az = (int16_t)((((uint16_t)az_h) << 8) | ((uint16_t)az_l));
 	printf("az = %d\n", az);
+
+	return err;
+}
+
+
+esp_err_t i2c_read_gz (uint8_t slave_addr) {
+	esp_err_t err = ESP_OK;
+	uint8_t gz_l, gz_h;
+
+	// Request register LSB
+	if ((err = i2c_reg_request(slave_addr, REG_GYRO_Z_L)) != ESP_OK) {
+		return err;
+	}
+	// Read register LSB
+	if ((err = i2c_reg_receive(slave_addr, &gz_l)) != ESP_OK) {
+		return err;
+	}
+
+	// Request register HSB
+	if ((err = i2c_reg_request(slave_addr, REG_GYRO_Z_H)) != ESP_OK) {
+		return err;
+	}
+	// Read register HSB
+	if ((err = i2c_reg_receive(slave_addr, &gz_h)) != ESP_OK) {
+		return err;
+	}
+
+	// Print z-axis value
+	int16_t gz = (((uint16_t)gz_h) << 8) | (((uint16_t)gz_l));
+	printf("gz = %d\n", gz);
 
 	return err;
 }

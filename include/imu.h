@@ -41,6 +41,10 @@ typedef struct {
 typedef uint8_t accel_cfg_t;
 
 
+// Type describing the IMU gyroscope modes
+typedef uint8_t gyro_cfg_t;
+
+
 /*
  *******************************************************************************
  *                             Symbolic Constants                              *
@@ -117,6 +121,14 @@ typedef uint8_t accel_cfg_t;
 #define ACCEL_CFG_RANGE_16G      ((1 << 2) | (1 << 3))
 
 
+// MPU-6050 Gyroscope configuration values (Hex)
+#define REG_GYRO_CFG             0x1B
+#define GYRO_CFG_RANGE_250       0x0
+#define GYRO_CFG_RANGE_500       (1 << 2)
+#define GYRO_CFG_RANGE_1000      (1 << 3)
+#define GYRO_CFG_RANGE_2000      ((1 << 2) | (1 << 3))
+
+
 // MPU-6050 [R/W] Power management register values (Hex)
 #define REG_PWR_MGMT_1           0x6B
 #define PWR_DEV_RESET            (1 << 6)
@@ -132,6 +144,21 @@ typedef uint8_t accel_cfg_t;
 #define FIFO_EN_ACCEL            (1 << 2)
 
 
+// MPU-6050 [R/W] Sample rate divider (Hex)
+#define REG_SAMPLE_RATE          0x19
+
+
+// MPU-6050 [R/W] DLFP configuration (Hex)
+#define REG_DLFP_CFG             0x1A
+#define DLFP_FILTER_0            0x0 // A{260Hz,0.0ms} G{256Hz 0.98ms} Fs=8kHz
+#define DLFP_FILTER_1            0x1 // A{184Hz,2.0ms} G{188Hz 1.9ms}  Fs=1kHz
+#define DLFP_FILTER_2            0x2 // A{94Hz, 3.0ms} G{98Hz  2.8ms}  Fs=1kHz
+#define DLFP_FILTER_3            0x3 // A{44Hz, 4.9ms} G{42Hz, 4.8ms}  Fs=1kHz
+#define DLFP_FILTER_4            0x4 // A{21Hz, 8.5ms} G{20Hz, 8.3ms}  Fs=1kHz
+#define DLFP_FILTER_5            0x5 // A{10Hz,13.8ms} G{10Hz,13.4ms}  Fs=1kHz
+#define DLFP_FILTER_6            0x6 // A{ 5Hz,19.0ms} G{ 5Hz,18.6ms}  Fs=1kHz
+
+
 // MPU-6050 [R] FIFO count register values (Hex)
 #define REG_FIFO_COUNT_L         0x73
 #define REG_FIFI_COUNT_H         0x72
@@ -145,6 +172,14 @@ typedef uint8_t accel_cfg_t;
 #define REG_INTR_EN              0x38
 #define INTR_DATA_RDY            (1 << 0)
 #define INTR_FIFO_OFL            (1 << 3)
+
+
+// MPU-6050[R/W] Interrupt configuration register value (Hex)
+#define REG_INTR_CFG             0x37
+#define INTR_CFG_ACTIVE_LOW      (1 << 6)
+#define INTR_CFG_OPEN_DRAIN      (1 << 5)
+#define INTR_CFG_LATCHING        (1 << 4)
+#define INTR_CFG_RD58_CLR        (1 << 3)
 
 
 // MPU-6050 [R] Interrupt status register value (Hex)
@@ -185,15 +220,88 @@ esp_err_t imu_set_mode (uint8_t slave_addr, bool sleeping);
 
 /*\
  * @brief Configures the IMU accelerometer
- * @param slave_addr  Address of the slave device
+ * @param slave_addr   Address of the slave device
  * @param accel_cfg_t  Accelerometer configuration value
  * @return esp_err_t   ESP error value (ESP_OK if none)
 \*/
 esp_err_t imu_cfg_accelerometer (uint8_t slave_addr, accel_cfg_t cfg);
 
 
-// Attempts to read the az register of the device at given slave_addr
+/*\
+ * @brief Configures the IMU gyroscope
+ * @param slave_addr  Address of the slave device
+ * @param gyro_cfg_t  Gyroscope configuration value
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_cfg_gyroscope (uint8_t slave_addr, gyro_cfg_t cfg);
+
+
+/*\
+ * @brief Enables FIFO for the IMU. 
+ * @param slave_addr  Address of the slave device
+ * @param flags       Byte (flag) indicating what FIFO will contain
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_set_fifo (uint8_t slave_addr, uint8_t flags);
+
+
+/*\
+ * @brief Enables the IMU to generate interrupts on interrupt pin
+ * @param slave_addr  Address of the slave device
+ * @param flags       Byte (flag) indicating what will generate
+ *                    an interrupt (see datasheet for all)
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_set_intr (uint8_t slave_addr, uint8_t flags);
+
+
+/*\
+ * @brief Configures the behaviour of the interrupt pin
+ * @param slave_addr  Address of the slave device
+ * @param flags       Byte (flags) with ISR configuration
+ *                    bits
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_cfg_intr (uint8_t slave_addr, uint8_t flags);
+
+
+/*\
+ * @brief Clears an interrupt by reading register 58
+ * @param slave_addr  Address of the slave device
+ * @return esp_err_t ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_clr_intr (uint8_t slave_addr);
+
+
+/*\
+ * @brief Sets the sampling rate. See notes (important)
+ * @note  Gyro output rate = 8kHz when DLFP disabled
+ * @note  Gyro output rate = 1kHz when DLFP enabled
+ * @param slave_addr  Address of the slave device
+ * @param divider     An 8-bit value dividing the Gyro output rate
+ *                    sample_rate = (gyro_output_rate / (1 + divider))
+ * @return esp_err_t ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_set_sampling_rate (uint8_t slave_addr, uint8_t divider);
+
+
+/*\
+ * @brief Sets the DLFP setting.
+ * @note  Sampling rate divider is adjusted if DLFP enabled
+ * @note  DLFP only disabled for input: DLFP_FILTER_0
+ * @param slave_addr  Address of the slave device
+ * @param filter      Byte representing the filter to apply
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t imu_set_dlfp (uint8_t slave_addr, uint8_t filter);
+
+
+// Attempts to read the az register of the device at given
 esp_err_t i2c_read_az (uint8_t slave_addr);
+
+
+// Attempts to read the gz register of the device
+esp_err_t i2c_read_gz (uint8_t slave_addr);
 
 
 #endif

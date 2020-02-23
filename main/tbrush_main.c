@@ -18,16 +18,32 @@
 #include "sdkconfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/queue.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 #include "driver/i2c.h"
-
+#include "driver/gpio.h"
 #include "imu.h"
 #include "errors.h"
 
 
 #define I2C_SLAVE_ADDR      0x68
         
+#define I2C_INTR_PIN        21
+
+#define ESP_INTR_FLAG_DEFAULT 0
+
+
+// Event queue holding events from the GPIO interrupt
+static xQueueHandle gpio_event_queue = NULL;
+
+
+// Interrupt handler
+static void IRAM_ATTR gpio_isr_handler (void *arg) {
+    uint32_t gpio_num = (uint32_t)arg;
+    xQueueSendFromISR(gpio_event_queue, &gpio_num, NULL);
+}
+
 
 void app_main (void) {
     esp_err_t err = ESP_OK;
@@ -48,34 +64,141 @@ void app_main (void) {
 
     ESP_LOGI("APP", "Attempting to read accelerometer z-axis data!");
 
+    /********************** xEventQueue ***********************/
+
+    if ((gpio_event_queue = xQueueCreate(10, sizeof(uint32_t))) == NULL) {
+        ERR("Insufficient memory to create queue!");
+        goto esc;
+    }
+
+    /*********************** GPIO ****************************************/
+
+    // Configure GPIO to allow interrupts
+    uint64_t pin_bit_mask = ((uint64_t)1) << (uint64_t)(I2C_INTR_PIN);
+    gpio_config_t gpio_cfg = (gpio_config_t) {
+        .pin_bit_mask    = pin_bit_mask,
+        .mode            = GPIO_MODE_INPUT,
+        .pull_up_en      = GPIO_PULLUP_ENABLE,
+        .pull_down_en    = GPIO_PULLDOWN_DISABLE,
+        .intr_type       = GPIO_INTR_LOW_LEVEL 
+    };
+
+    // Apply GPIO configuration
+    if ((err = gpio_config(&gpio_cfg)) != ESP_OK) {
+        ERR("Couldn't configure GPIO!");
+        goto esc;
+    }
+
+    // Install GPIO interrupt service 
+    if ((err = gpio_install_isr_service(ESP_INTR_FLAG_DEFAULT)) != ESP_OK) {
+        if (err == ESP_ERR_NO_MEM) {
+            ERR("No memory available to install service!");
+        } else if (err == ESP_ERR_INVALID_STATE) {
+            ERR("Service is already installed!");
+        } else if (err == ESP_ERR_NOT_FOUND) {
+            ERR("No free interrupt found with specified flags!");
+        } else if (err == ESP_ERR_INVALID_ARG) {
+            ERR("GPIO error!");
+        } else {
+            ERR("Unknown error!");
+        }
+        goto esc;
+    }
+
+    // Attach an ISR handler for a specific pin
+    if ((err = gpio_isr_handler_add(I2C_INTR_PIN, gpio_isr_handler, 
+        (void *)I2C_INTR_PIN) // Ugly hack to pass PIN as "pointer"
+        ) != ESP_OK) {
+        if (err == ESP_ERR_INVALID_STATE) {
+            ERR("Must initialize ISR service: gpio_install_isr_service()!");
+        } else if (err == ESP_ERR_INVALID_ARG) {
+            ERR("Bad parameter!");
+        } else {
+            ERR("Invalid error type!");
+        }
+        goto esc;
+    }
+
+    /*********************** IMU ****************************************/
+
+
     // Initialize I2C
     if ((err = imu_init(21, 22, I2C_SLAVE_ADDR)) != ESP_OK) {
-        return;
+        goto esc;
     }
 
-    // Wake IMU
+    // Set IMU to not sleep
     if ((err = imu_set_mode(I2C_SLAVE_ADDR, false)) != ESP_OK) {
-        return;
+        goto esc;
     }
 
-    // Configure accelerometer range
+    // Configure accelerometer sensitivity
     if ((err = imu_cfg_accelerometer(I2C_SLAVE_ADDR, 
         ACCEL_CFG_RANGE_8G)) != ESP_OK) {
-        return;
+        goto esc;
     }
+
+    // Configure gyroscope sensitivity
+    if ((err = imu_cfg_gyroscope(I2C_SLAVE_ADDR, 
+        GYRO_CFG_RANGE_500)) != ESP_OK) {
+        goto esc;
+    }
+
+    // Configure the DLFP 
+    if ((err = imu_set_dlfp(I2C_SLAVE_ADDR, DLFP_FILTER_6)) != ESP_OK) {
+        goto esc;
+    }
+
+    // Enable FIFO
+    uint8_t imu_fifo_flags = FIFO_EN_GX | FIFO_EN_GY | FIFO_EN_GZ | FIFO_EN_ACCEL;
+    if ((err = imu_set_fifo(I2C_SLAVE_ADDR, imu_fifo_flags)) != ESP_OK) {
+        goto esc;
+    }
+
+    // Configure interrupt behaviour 
+    uint8_t imu_cfg_flags = INTR_CFG_ACTIVE_LOW | INTR_CFG_OPEN_DRAIN | INTR_CFG_LATCHING | INTR_CFG_RD58_CLR;
+    if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
+        goto esc;
+    }
+
+    // Enable interrupts from FIFO
+    uint8_t imu_intr_flags = INTR_FIFO_OFL;
+    if ((err = imu_set_intr(I2C_SLAVE_ADDR, imu_intr_flags)) != ESP_OK) {
+        goto esc;
+    }
+
 
     // Read the IMU a bit
     imu_data_t data;
+    uint32_t pin_number;
     while (1) {
 
-        // Print az
-        if (i2c_read_az(I2C_SLAVE_ADDR) != ESP_OK) {
-            ERR("Bad read!");
+        if (xQueueReceive(gpio_event_queue, &pin_number, 10)) {
+            printf("intr - GPIO [%d]\n", pin_number);
+
+
+            // Clear the interrupt by setting the pin
+            if ((err = imu_clr_intr(I2C_SLAVE_ADDR)) != ESP_OK) {
+                break;
+            }
         }
+
+        printf("...\n");
+
+        // // Print az
+        // if (i2c_read_az(I2C_SLAVE_ADDR) != ESP_OK) {
+        //     ERR("Bad read!");
+        // }
+
+        // Print gz
+        // if (i2c_read_gz(I2C_SLAVE_ADDR) != ESP_OK) {
+        //     ERR("Bad read!");
+        // }
 
         //vTaskDelay(portTICK_PERIOD_MS);
     }
 
+esc:
 
     for (int i = 10; i >= 0; i--) {
         printf("Restarting in %d seconds...\n", i);
