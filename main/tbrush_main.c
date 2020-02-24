@@ -111,7 +111,7 @@ void app_main (void) {
         .mode            = GPIO_MODE_INPUT,
         .pull_up_en      = GPIO_PULLUP_DISABLE,
         .pull_down_en    = GPIO_PULLDOWN_ENABLE,
-        .intr_type       = GPIO_INTR_ANYEDGE 
+        .intr_type       = GPIO_INTR_POSEDGE 
     };
 
     // Apply GPIO configuration

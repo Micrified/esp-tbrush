@@ -32,8 +32,8 @@
 
 // Structure describing interesting IMU data
 typedef struct {
-	uint16_t ax, ay, az;
-	uint16_t gx, gy, gz;
+	int16_t ax, ay, az;
+	int16_t gx, gy, gz;
 } imu_data_t;
 
 
