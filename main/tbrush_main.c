@@ -111,7 +111,7 @@ void app_main (void) {
         .mode            = GPIO_MODE_INPUT,
         .pull_up_en      = GPIO_PULLUP_DISABLE,
         .pull_down_en    = GPIO_PULLDOWN_ENABLE,
-        .intr_type       = GPIO_INTR_POSEDGE 
+        .intr_type       = GPIO_INTR_ANYEDGE 
     };
 
     // Apply GPIO configuration
@@ -186,9 +186,15 @@ void app_main (void) {
     //     goto esc;
     // }
 
+
     // Enable FIFO
+    if ((err = imu_set_fifo(I2C_SLAVE_ADDR, true)) != ESP_OK) {
+        goto esc;
+    }
+
+    // Configure FIFO
     uint8_t imu_fifo_flags = FIFO_EN_GX | FIFO_EN_GY | FIFO_EN_GZ | FIFO_EN_ACCEL;
-    if ((err = imu_set_fifo(I2C_SLAVE_ADDR, imu_fifo_flags)) != ESP_OK) {
+    if ((err = imu_cfg_fifo(I2C_SLAVE_ADDR, imu_fifo_flags)) != ESP_OK) {
         goto esc;
     }
 

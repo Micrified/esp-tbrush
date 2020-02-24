@@ -360,7 +360,24 @@ esp_err_t imu_cfg_gyroscope (uint8_t slave_addr, gyro_cfg_t cfg) {
 }
 
 
-esp_err_t imu_set_fifo (uint8_t slave_addr, uint8_t flags) {
+esp_err_t imu_set_fifo (uint8_t slave_addr, bool enabled) {
+	esp_err_t err = ESP_OK;
+	uint8_t mode = 0x0;
+
+	if (enabled) {
+		mode |= CTRL_FIFO_EN;
+	} 
+
+	if ((err = i2c_write_register(slave_addr, REG_USER_CTRL,
+		&mode, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
+esp_err_t imu_cfg_fifo (uint8_t slave_addr, uint8_t flags) {
 	esp_err_t err = ESP_OK;
 
 	// Attempt to write to the register
@@ -491,7 +508,7 @@ esp_err_t i2c_receive_fifo (uint8_t slave_addr, imu_data_t *data_p) {
 		data_p->gz = value;
 	}
 
-	
+
 	return err;
 }
 

@@ -240,12 +240,22 @@ esp_err_t imu_cfg_gyroscope (uint8_t slave_addr, gyro_cfg_t cfg);
 
 
 /*\
- * @brief Enables FIFO for the IMU. 
+ * @brief Enables FIFO for the IMU.
+ * @param slave_addr  Address of the slave device
+ * @param enabled     Boolean value. If true, FIFO is enabled. 
+ * @return esp_err_t  ESP error value (ESP_OK) if none)
+\*/
+esp_err_t imu_set_fifo (uint8_t slave_addr, bool enabled);
+
+
+/*\
+ * @brief Configures FIFO for the IMU. 
  * @param slave_addr  Address of the slave device
  * @param flags       Byte (flag) indicating what FIFO will contain
  * @return esp_err_t  ESP error value (ESP_OK if none)
 \*/
-esp_err_t imu_set_fifo (uint8_t slave_addr, uint8_t flags);
+esp_err_t imu_cfg_fifo (uint8_t slave_addr, uint8_t flags);
+
 
 
 /*\
