@@ -182,13 +182,21 @@ void app_main (void) {
     }
 
     // Set the sampling rate
-    // if ((err = imu_set_sampling_rate(I2C_SLAVE_ADDR, 0xFF)) != ESP_OK) {
-    //     goto esc;
-    // }
+    if ((err = imu_set_sampling_rate(I2C_SLAVE_ADDR, 0x9)) != ESP_OK) {
+        goto esc;
+    }
 
 
-    // Enable FIFO
-    if ((err = imu_set_fifo(I2C_SLAVE_ADDR, true)) != ESP_OK) {
+    // Configure interrupt behaviour 
+    uint8_t imu_cfg_flags = 0x0;
+    if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
+        goto esc;
+    }
+
+    // Enable interrupts from FIFO
+    // IDEA: Wait until FIFO hits -> read everything -> reset interrupt
+    uint8_t imu_intr_flags = INTR_DATA_RDY;
+    if ((err = imu_set_intr(I2C_SLAVE_ADDR, imu_intr_flags)) != ESP_OK) {
         goto esc;
     }
 
@@ -198,15 +206,8 @@ void app_main (void) {
         goto esc;
     }
 
-    // Configure interrupt behaviour 
-    uint8_t imu_cfg_flags = INTR_CFG_LATCHING;
-    if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
-        goto esc;
-    }
-
-    // Enable interrupts from FIFO
-    uint8_t imu_intr_flags = INTR_FIFO_OFL;
-    if ((err = imu_set_intr(I2C_SLAVE_ADDR, imu_intr_flags)) != ESP_OK) {
+    // Enable FIFO
+    if ((err = imu_set_fifo(I2C_SLAVE_ADDR, true)) != ESP_OK) {
         goto esc;
     }
 
@@ -216,8 +217,8 @@ void app_main (void) {
     uint32_t pin_number;
     while (1) {
 
-        if (xQueueReceive(g_gpio_event_queue, &pin_number, 10)) {
-            printf("intr - GPIO [%d]\n", pin_number);
+        if (xQueueReceive(g_gpio_event_queue, &pin_number, 0x0)) {
+            //printf("intr - GPIO [%d]\n", pin_number);
 
 
             // Clear the interrupt by setting the pin
@@ -231,10 +232,10 @@ void app_main (void) {
             }
 
             // Print readings
-            printf("%d %d %d | %d %d %d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
+            printf("%5d %5d %5d | %5d %5d %5d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
         }
 
-        printf("...\n");
+        //printf("...\n");
 
         // // Print az
         // if (i2c_read_az(I2C_SLAVE_ADDR) != ESP_OK) {
