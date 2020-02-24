@@ -176,10 +176,13 @@ typedef uint8_t gyro_cfg_t;
 
 // MPU-6050[R/W] Interrupt configuration register value (Hex)
 #define REG_INTR_CFG             0x37
-#define INTR_CFG_ACTIVE_LOW      (1 << 6)
-#define INTR_CFG_OPEN_DRAIN      (1 << 5)
-#define INTR_CFG_LATCHING        (1 << 4)
-#define INTR_CFG_RD58_CLR        (1 << 3)
+#define INTR_CFG_ACTIVE_LOW      (1 << 7)
+#define INTR_CFG_OPEN_DRAIN      (1 << 6)
+#define INTR_CFG_LATCHING        (1 << 5)
+#define INTR_CFG_RD58_CLR        (1 << 4)
+#define INTR_CFG_FSYNC_LVL       (1 << 3)
+#define INTR_CFG_FSYNC_EN        (1 << 2)
+#define INTR_CFG_FSYNC_BYPASS    (1 << 1)
 
 
 // MPU-6050 [R] Interrupt status register value (Hex)
