@@ -177,7 +177,7 @@ void app_main (void) {
     }
 
     // Configure the DLFP 
-    if ((err = imu_set_dlfp(I2C_SLAVE_ADDR, DLFP_FILTER_6)) != ESP_OK) {
+    if ((err = imu_set_dlfp(I2C_SLAVE_ADDR, DLFP_FILTER_2)) != ESP_OK) {
         goto esc;
     }
 
