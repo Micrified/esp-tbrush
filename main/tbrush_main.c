@@ -26,22 +26,51 @@
 #include "imu.h"
 #include "errors.h"
 
+/*
+ *******************************************************************************
+ *                             Symbolic Constants                              *
+ *******************************************************************************
+*/
 
-#define I2C_SLAVE_ADDR      0x68
-        
-#define I2C_INTR_PIN        21
 
-#define ESP_INTR_FLAG_DEFAULT 0
+// SDA pin for I2C bus
+#define I2C_SDA_PIN               21
+
+// SCL pin for I2C bus
+#define I2C_SCL_PIN               22
+
+// Address of the IMU device on the I2C bus
+#define I2C_SLAVE_ADDR            0x68
+
+// GPIO pin configured for the interrupt
+#define I2C_INTR_PIN              15
+
+// Interrupt priority (default)
+#define ESP_INTR_FLAG_DEFAULT     0
+
+
+/*
+ *******************************************************************************
+ *                              Global Variables                               *
+ *******************************************************************************
+*/
 
 
 // Event queue holding events from the GPIO interrupt
-static xQueueHandle gpio_event_queue = NULL;
+static xQueueHandle g_gpio_event_queue = NULL;
+
+
+/*
+ *******************************************************************************
+ *                            Function Definitions                             *
+ *******************************************************************************
+*/
 
 
 // Interrupt handler
 static void IRAM_ATTR gpio_isr_handler (void *arg) {
     uint32_t gpio_num = (uint32_t)arg;
-    xQueueSendFromISR(gpio_event_queue, &gpio_num, NULL);
+    xQueueSendFromISR(g_gpio_event_queue, &gpio_num, NULL);
 }
 
 
@@ -62,25 +91,27 @@ void app_main (void) {
     printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
             (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
-    ESP_LOGI("APP", "Attempting to read accelerometer z-axis data!");
 
-    /********************** xEventQueue ***********************/
+    /********************** EVENT-QUEUE CONFIGURATION ***********************/
 
-    if ((gpio_event_queue = xQueueCreate(10, sizeof(uint32_t))) == NULL) {
+
+    if ((g_gpio_event_queue = xQueueCreate(10, sizeof(uint32_t))) == NULL) {
         ERR("Insufficient memory to create queue!");
         goto esc;
     }
 
-    /*********************** GPIO ****************************************/
+
+    /************************* GPIO CONFIGURATION ***************************/
+
 
     // Configure GPIO to allow interrupts
     uint64_t pin_bit_mask = ((uint64_t)1) << (uint64_t)(I2C_INTR_PIN);
     gpio_config_t gpio_cfg = (gpio_config_t) {
         .pin_bit_mask    = pin_bit_mask,
         .mode            = GPIO_MODE_INPUT,
-        .pull_up_en      = GPIO_PULLUP_ENABLE,
-        .pull_down_en    = GPIO_PULLDOWN_DISABLE,
-        .intr_type       = GPIO_INTR_LOW_LEVEL 
+        .pull_up_en      = GPIO_PULLUP_DISABLE,
+        .pull_down_en    = GPIO_PULLDOWN_ENABLE,
+        .intr_type       = GPIO_INTR_POSEDGE 
     };
 
     // Apply GPIO configuration
@@ -119,11 +150,12 @@ void app_main (void) {
         goto esc;
     }
 
-    /*********************** IMU ****************************************/
+
+    /************************** I2C CONFIGURATION ***************************/
 
 
     // Initialize I2C
-    if ((err = imu_init(21, 22, I2C_SLAVE_ADDR)) != ESP_OK) {
+    if ((err = imu_init(I2C_SDA_PIN, I2C_SCL_PIN, I2C_SLAVE_ADDR)) != ESP_OK) {
         goto esc;
     }
 
@@ -149,6 +181,11 @@ void app_main (void) {
         goto esc;
     }
 
+    // Set the sampling rate
+    // if ((err = imu_set_sampling_rate(I2C_SLAVE_ADDR, 0xFF)) != ESP_OK) {
+    //     goto esc;
+    // }
+
     // Enable FIFO
     uint8_t imu_fifo_flags = FIFO_EN_GX | FIFO_EN_GY | FIFO_EN_GZ | FIFO_EN_ACCEL;
     if ((err = imu_set_fifo(I2C_SLAVE_ADDR, imu_fifo_flags)) != ESP_OK) {
@@ -156,7 +193,7 @@ void app_main (void) {
     }
 
     // Configure interrupt behaviour 
-    uint8_t imu_cfg_flags = INTR_CFG_ACTIVE_LOW | INTR_CFG_OPEN_DRAIN | INTR_CFG_LATCHING | INTR_CFG_RD58_CLR;
+    uint8_t imu_cfg_flags = INTR_CFG_LATCHING | INTR_CFG_RD58_CLR;
     if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
         goto esc;
     }
@@ -173,7 +210,7 @@ void app_main (void) {
     uint32_t pin_number;
     while (1) {
 
-        if (xQueueReceive(gpio_event_queue, &pin_number, 10)) {
+        if (xQueueReceive(g_gpio_event_queue, &pin_number, 10)) {
             printf("intr - GPIO [%d]\n", pin_number);
 
 
