@@ -193,7 +193,7 @@ void app_main (void) {
     }
 
     // Configure interrupt behaviour 
-    uint8_t imu_cfg_flags = INTR_CFG_LATCHING | INTR_CFG_RD58_CLR;
+    uint8_t imu_cfg_flags = INTR_CFG_LATCHING;
     if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
         goto esc;
     }
@@ -218,6 +218,14 @@ void app_main (void) {
             if ((err = imu_clr_intr(I2C_SLAVE_ADDR)) != ESP_OK) {
                 break;
             }
+
+            // Read the FIFO out
+            if ((err = i2c_receive_fifo(I2C_SLAVE_ADDR, &data)) != ESP_OK) {
+                break;
+            }
+
+            // Print readings
+            printf("%d %d %d | %d %d %d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
         }
 
         printf("...\n");

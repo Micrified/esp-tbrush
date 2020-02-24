@@ -116,32 +116,32 @@ typedef uint8_t gyro_cfg_t;
 // MPU-6050 Accelerometer configuration values (Hex)
 #define REG_ACCEL_CFG            0x1C
 #define ACCEL_CFG_RANGE_2G       0x0
-#define ACCEL_CFG_RANGE_4G       (1 << 2)
-#define ACCEL_CFG_RANGE_8G       (1 << 3)
-#define ACCEL_CFG_RANGE_16G      ((1 << 2) | (1 << 3))
+#define ACCEL_CFG_RANGE_4G       (1 << 3)
+#define ACCEL_CFG_RANGE_8G       (1 << 4)
+#define ACCEL_CFG_RANGE_16G      ((1 << 3) | (1 << 4))
 
 
 // MPU-6050 Gyroscope configuration values (Hex)
 #define REG_GYRO_CFG             0x1B
 #define GYRO_CFG_RANGE_250       0x0
-#define GYRO_CFG_RANGE_500       (1 << 2)
-#define GYRO_CFG_RANGE_1000      (1 << 3)
-#define GYRO_CFG_RANGE_2000      ((1 << 2) | (1 << 3))
+#define GYRO_CFG_RANGE_500       (1 << 3)
+#define GYRO_CFG_RANGE_1000      (1 << 4)
+#define GYRO_CFG_RANGE_2000      ((1 << 3) | (1 << 4))
 
 
 // MPU-6050 [R/W] Power management register values (Hex)
 #define REG_PWR_MGMT_1           0x6B
-#define PWR_DEV_RESET            (1 << 6)
-#define PWR_DEV_SLEEP            (1 << 5)
+#define PWR_DEV_RESET            (1 << 7)
+#define PWR_DEV_SLEEP            (1 << 6)
 
 
 // MPU-6050 [R/W] FIFO enable register values (Hex)
 #define REG_FIFO_EN              0x23
-#define FIFO_EN_TEMP             (1 << 6)
-#define FIFO_EN_GX               (1 << 5)
-#define FIFO_EN_GY               (1 << 4)
-#define FIFO_EN_GZ               (1 << 3)
-#define FIFO_EN_ACCEL            (1 << 2)
+#define FIFO_EN_TEMP             (1 << 7)
+#define FIFO_EN_GX               (1 << 6)
+#define FIFO_EN_GY               (1 << 5)
+#define FIFO_EN_GZ               (1 << 4)
+#define FIFO_EN_ACCEL            (1 << 3)
 
 
 // MPU-6050 [R/W] Sample rate divider (Hex)
@@ -171,7 +171,7 @@ typedef uint8_t gyro_cfg_t;
 // MPU-6050 [R/W] Interrupt enable register value (Hex)
 #define REG_INTR_EN              0x38
 #define INTR_DATA_RDY            (1 << 0)
-#define INTR_FIFO_OFL            (1 << 3)
+#define INTR_FIFO_OFL            (1 << 4)
 
 
 // MPU-6050[R/W] Interrupt configuration register value (Hex)
@@ -179,7 +179,7 @@ typedef uint8_t gyro_cfg_t;
 #define INTR_CFG_ACTIVE_LOW      (1 << 7)
 #define INTR_CFG_OPEN_DRAIN      (1 << 6)
 #define INTR_CFG_LATCHING        (1 << 5)
-#define INTR_CFG_RD58_CLR        (1 << 4)
+#define INTR_CFG_ANY_CLR         (1 << 4)
 #define INTR_CFG_FSYNC_LVL       (1 << 3)
 #define INTR_CFG_FSYNC_EN        (1 << 2)
 #define INTR_CFG_FSYNC_BYPASS    (1 << 1)
@@ -191,7 +191,7 @@ typedef uint8_t gyro_cfg_t;
 
 // MPU-6050 [R/W] User control register values (Hex)
 #define REG_USER_CTRL            0x6A
-#define CTRL_FIFO_EN             (1 << 5)
+#define CTRL_FIFO_EN             (1 << 6)
 
 
 /*
@@ -297,6 +297,16 @@ esp_err_t imu_set_sampling_rate (uint8_t slave_addr, uint8_t divider);
  * @return esp_err_t  ESP error value (ESP_OK if none)
 \*/
 esp_err_t imu_set_dlfp (uint8_t slave_addr, uint8_t filter);
+
+
+/*\
+ * @brief Reads data from the FIFO by individually requesting each byte
+ * @param slave_addr  Address of the slave device
+ * @param data_p      Non-null pointer to data-structure in which data
+ *                    is written.
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t i2c_receive_fifo (uint8_t slave_addr, imu_data_t *data_p);
 
 
 // Attempts to read the az register of the device at given

@@ -224,6 +224,39 @@ esc:
 	return err;
 }
 
+// Performs a request/receive sequence to FIFO (assuming signed 16-bit in order MSB then LSB)
+esp_err_t read_pair (uint8_t slave_addr, int16_t *data_p) {
+	uint8_t lsb, msb;
+	esp_err_t err = ESP_OK;
+
+	if (data_p == NULL) {
+		return ESP_ERR_INVALID_ARG;
+	}
+
+	// Request MSB
+	if ((err = i2c_reg_request(slave_addr, REG_FIFO_VALUE)) != ESP_OK) {
+		return err;
+	}
+	// Read MSB
+	if ((err = i2c_reg_receive(slave_addr, &msb)) != ESP_OK) {
+		return err;
+	}
+
+	// Request LSB
+	if ((err = i2c_reg_request(slave_addr, REG_FIFO_VALUE)) != ESP_OK) {
+		return err;
+	}
+	// Read LSB
+	if ((err = i2c_reg_receive(slave_addr, &lsb)) != ESP_OK) {
+		return err;
+	}
+
+	// Write data to given pointer
+	*data_p = (int16_t)((((uint16_t)msb) << 8) | ((uint16_t)lsb));
+
+	return err;
+}
+
 
 /*
  *******************************************************************************
@@ -404,6 +437,61 @@ esp_err_t imu_set_dlfp (uint8_t slave_addr, uint8_t filter) {
 		return err;
 	}
 
+	return err;
+}
+
+
+esp_err_t i2c_receive_fifo (uint8_t slave_addr, imu_data_t *data_p) {
+	esp_err_t err = ESP_OK;
+	int16_t value;
+
+	if (data_p == NULL) {
+		return ESP_ERR_INVALID_ARG;
+	}
+
+	// Read ax
+	if ((err = read_pair(slave_addr, &value)) != ESP_OK) {
+		return err;
+	} else {
+		data_p->ax = value;
+	}
+
+	// Read ay
+	if ((err = read_pair(slave_addr, &value)) != ESP_OK) {
+		return err;
+	} else {
+		data_p->ay = value;
+	}
+
+	// Read az
+	if ((err = read_pair(slave_addr, &value)) != ESP_OK) {
+		return err;
+	} else {
+		data_p->az = value;
+	}
+
+	// Read gx
+	if ((err = read_pair(slave_addr, &value)) != ESP_OK) {
+		return err;
+	} else {
+		data_p->gx = value;
+	}
+
+	// Read gy
+	if ((err = read_pair(slave_addr, &value)) != ESP_OK) {
+		return err;
+	} else {
+		data_p->gy = value;
+	}
+
+	// Read gz
+	if ((err = read_pair(slave_addr, &value)) != ESP_OK) {
+		return err;
+	} else {
+		data_p->gz = value;
+	}
+
+	
 	return err;
 }
 
