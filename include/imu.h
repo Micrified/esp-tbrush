@@ -328,6 +328,17 @@ esp_err_t imu_set_dlfp (uint8_t slave_addr, uint8_t filter);
 esp_err_t i2c_receive_fifo (uint8_t slave_addr, imu_data_t *data_p);
 
 
+/*\
+ * @brief Returns the number of bytes in the FIFO queue by reading
+ *        the value of the FIFO register
+ * @param slave_addr  Address of the slave device
+ * @param len_p      Non-null pointer to integer where value is 
+ *                    written
+ * @return esp_err_t  ESP error value (ESP_OK if none)
+\*/
+esp_err_t i2c_get_fifo_length (uint8_t slave_addr, uint16_t *len_p);
+
+
 // Attempts to read the az register of the device at given
 esp_err_t i2c_read_az (uint8_t slave_addr);
 

@@ -418,7 +418,7 @@ esp_err_t imu_cfg_intr (uint8_t slave_addr, uint8_t flags) {
 
 esp_err_t imu_clr_intr (uint8_t slave_addr) {
 	esp_err_t err = ESP_OK;
-	uint8_t data = 0x0;
+	uint8_t data;
 
 	// Attempt to just read the register (sufficient to clear it)
 	if ((err = i2c_reg_request(slave_addr, REG_INTR_STATUS)) != ESP_OK) {
@@ -508,6 +508,39 @@ esp_err_t i2c_receive_fifo (uint8_t slave_addr, imu_data_t *data_p) {
 		data_p->gz = value;
 	}
 
+
+	return err;
+}
+
+
+esp_err_t i2c_get_fifo_length (uint8_t slave_addr, uint16_t *len_p) {
+	esp_err_t err = ESP_OK;
+	uint8_t msb, lsb;
+
+	if (len_p == NULL) {
+		return ESP_ERR_INVALID_ARG;
+	}
+
+	// Request MSB
+	if ((err = i2c_reg_request(slave_addr, REG_FIFI_COUNT_H)) != ESP_OK) {
+		return err;
+	}
+	// Receive MSB
+	if ((err = i2c_reg_receive(slave_addr, &msb)) != ESP_OK) {
+		return err;
+	}
+
+	// Request LSB
+	if ((err = i2c_reg_request(slave_addr, REG_FIFO_COUNT_L)) != ESP_OK) {
+		return err;
+	}
+	// Receive LSB
+	if ((err = i2c_reg_receive(slave_addr, &lsb)) != ESP_OK) {
+		return err;
+	}
+
+	// Write to data pointer
+	*len_p = (((uint16_t)msb) << 8) | ((uint16_t)lsb);
 
 	return err;
 }

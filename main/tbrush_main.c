@@ -181,20 +181,19 @@ void app_main (void) {
         goto esc;
     }
 
-    // Set the sampling rate
+    // Set the sampling rate (~100Hz)
     if ((err = imu_set_sampling_rate(I2C_SLAVE_ADDR, 0x9)) != ESP_OK) {
         goto esc;
     }
 
-
-    // Configure interrupt behaviour 
-    uint8_t imu_cfg_flags = 0x0;
+    // Configure interrupt behaviour (latching)
+    uint8_t imu_cfg_flags = INTR_CFG_LATCHING; // 0x0; // No latching
     if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
         goto esc;
     }
 
-    // Enable interrupts from FIFO
-    // IDEA: Wait until FIFO hits -> read everything -> reset interrupt
+    // Enable interrupts from full refresh of sensors
+    // IDEA: Wait until sensors refreshed hits -> read FIFO -> reset interrupt
     uint8_t imu_intr_flags = INTR_DATA_RDY;
     if ((err = imu_set_intr(I2C_SLAVE_ADDR, imu_intr_flags)) != ESP_OK) {
         goto esc;
@@ -214,25 +213,34 @@ void app_main (void) {
 
     // Read the IMU a bit
     imu_data_t data;
+    uint16_t fifo_lengths[1024] = {0xFFFF};
+    uint16_t fifo_len;
     uint32_t pin_number;
-    while (1) {
+    for (int k = 0; k < 1024; ) {
 
         if (xQueueReceive(g_gpio_event_queue, &pin_number, 0x0)) {
             //printf("intr - GPIO [%d]\n", pin_number);
 
+            // Read the FIFO out
+            // if ((err = i2c_receive_fifo(I2C_SLAVE_ADDR, &data)) != ESP_OK) {
+            //     break;
+            // }
+
+            // Read the FIFO count
+            if ((err = i2c_get_fifo_length(I2C_SLAVE_ADDR, &fifo_len)) != ESP_OK) {
+                break;
+            }
 
             // Clear the interrupt by setting the pin
             if ((err = imu_clr_intr(I2C_SLAVE_ADDR)) != ESP_OK) {
                 break;
             }
 
-            // Read the FIFO out
-            if ((err = i2c_receive_fifo(I2C_SLAVE_ADDR, &data)) != ESP_OK) {
-                break;
-            }
+            // Store the count in the table
+            fifo_lengths[k] = fifo_len;
 
             // Print readings
-            printf("%5d %5d %5d | %5d %5d %5d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
+            //printf("%5d %5d %5d | %5d %5d %5d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
         }
 
         //printf("...\n");
@@ -248,6 +256,12 @@ void app_main (void) {
         // }
 
         //vTaskDelay(portTICK_PERIOD_MS);
+    }
+
+    // Print the table lengths
+    printf("Lengths of the FIFO at each sampling update ... \n");
+    for (int j = 0; j < 1024 && fifo_lengths[j] != 0xFFFF; ++j) {
+        printf("%d: %u\n", j, fifo_lengths[j]);
     }
 
 esc:
