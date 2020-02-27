@@ -12,6 +12,7 @@
  *******************************************************************************
 */
 
+
 #if !defined(MPU_6050_H)
 #define MPU_6050_H
 
@@ -209,48 +210,141 @@ mpu6050_err_t mpu6050_write_register (mpu6050_i2c_cfg_t *cfg, uint8_t reg,
 */
 
 
+/*\
+ * @brief Configure power mode and clock source (See datasheet 4.30)
+ * @param cfg             The device configuration structure
+ * @param flags           The configuration flags
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_configure_power (mpu6050_i2c_cfg_t *cfg, uint8_t flags);
 
 
+/*\
+ * @brief Configure accelerometer self test and full-scale range
+ *        (See datasheet 4.5)
+ * @param cfg             The device configuration structure
+ * @param flags           The configuration flags
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_configure_accelerometer (mpu6050_i2c_cfg_t *cfg, 
 	uint8_t flags);
 
 
+/*\
+ * @brief Configure gyroscope self test and full-scale range
+ *        (See datasheet 4.4)
+ * @param cfg             The device configuration structure
+ * @param flags           The configuration flags
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_configure_gyroscope (mpu6050_i2c_cfg_t *cfg, 
 	uint8_t flags);
 
 
+/*\
+ * @brief Allows the FIFO to be enabled or disabled by writing
+ *        to the user control register (See datasheet 4.29)
+ * @param cfg             The device configuration structure
+ * @param enable          Whether to enable or disable the FIFO
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_enable_fifo (mpu6050_i2c_cfg_t *cfg, bool enable);
 
 
+/*\
+ * @brief Configure what sensor registers are written into the
+ *        FIFO (See datasheet 4.7). The register is called
+ *        FIFO Enable, but FIFO is actually enabled in the 
+ *        user-control register
+ * @param cfg             The device configuration structure
+ * @param flags           The configuration flags
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_configure_fifo (mpu6050_i2c_cfg_t *cfg, uint8_t flags);
 
 
+/*\
+ * @brief Enables interrupt generation by interrupt sources
+ *       (See datasheet 4.16)
+ * @param cfg             The device configuration structure
+ * @param flags           The configuration flags
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_enable_interrupt (mpu6050_i2c_cfg_t *cfg, uint8_t flags);
 
 
+/*\
+ * @brief Configure behavior of interrupt signals at the INT
+ *        pin (See datasheet 4.15)
+ * @param cfg             The device configuration structure
+ * @param flags           The configuration flags
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_configure_interrupt (mpu6050_i2c_cfg_t *cfg, 
 	uint8_t flags);
 
 
+/*\
+ * @brief Actually the interrupt-status register, reading this
+ *        register will clear a latching interrupt
+ *        (See datasheet 4.17)
+ * @param cfg             The device configuration structure
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_clear_interrupt (mpu6050_i2c_cfg_t *cfg);
 
 
+/*\
+ * @brief Specifies the divider that sets the sample rate
+ *       (See datasheet 4.2).
+ * @note  Sample_rate = (RATE / (1 + divident))
+ * @note  When DLFP is enabled, RATE is 1kHz; else 8kHz
+ * @param cfg             The device configuration structure
+ * @param divident        Value to divide gyro output RATE
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_set_sample_rate_divider (mpu6050_i2c_cfg_t *cfg, 
 	uint8_t divident);
 
 
+/*\
+ * @brief Configures frame synchronization (FSYNC) and 
+ *        DLFP settings for both gyroscope and accelerometer
+ *        (See datasheet 4.3)
+ * @param cfg             The device configuration structure
+ * @param filter          The DLFP filter choice (see macros)
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_configure_dlfp (mpu6050_i2c_cfg_t *cfg, uint8_t filter);
 
 
+/*\
+ * @brief Reads gyro and accelerometer data from the FIFO queue
+ * @note  ASSUMES FIFO CONFIGURED WITH GYRO + ACCEL ONLY!!!
+ * @param cfg             The device configuration structure
+ * @param data_p          Pointer to struct to save sample data
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_receive_fifo (mpu6050_i2c_cfg_t *cfg, 
 	mpu6050_data_t *data_p);
 
 
+/*\
+ * @brief Number of samples currently in the FIFO buffer
+ *        (See datasheet 4.32)
+ * @param cfg             The device configuration structure
+ * @param len_p           Pointer at which length will be written
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_get_fifo_length (mpu6050_i2c_cfg_t *cfg, 
 	uint16_t *len_p);
 
 
+/*\
+ * @brief Resets the FIFO via user control (See datasheet 4.29)
+ * @param cfg             The device configuration structure
+ * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
+\*/
 mpu6050_err_t mpu6050_fifo_reset (mpu6050_i2c_cfg_t *cfg);
 
 

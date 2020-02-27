@@ -203,3 +203,74 @@ esc:
 
 	return ret;
 }
+
+
+mpu6050_err_t mpu6050_configure_power (mpu6050_i2c_cfg_t *cfg, uint8_t flags) {
+	return mpu6050_write_register(cfg, REG_PWR_MGMT_1, flags, false);
+}
+
+
+mpu6050_err_t mpu6050_configure_accelerometer (mpu6050_i2c_cfg_t *cfg, 
+	uint8_t flags) {
+	return mpu6050_write_register(cfg, REG_A_CFG, flags, false);
+}
+
+
+mpu6050_err_t mpu6050_configure_gyroscope (mpu6050_i2c_cfg_t *cfg, 
+	uint8_t flags) {
+	return mpu6050_write_register(cfg, REG_G_CFG, flags, false)
+}
+
+
+mpu6050_err_t mpu6050_enable_fifo (mpu6050_i2c_cfg_t *cfg, bool enable) {
+	return mpu6050_write_register(cfg, );
+}
+
+
+mpu6050_err_t mpu6050_configure_fifo (mpu6050_i2c_cfg_t *cfg, uint8_t flags) {
+
+}
+
+
+mpu6050_err_t mpu6050_enable_interrupt (mpu6050_i2c_cfg_t *cfg, uint8_t flags) {
+
+}
+
+
+mpu6050_err_t mpu6050_configure_interrupt (mpu6050_i2c_cfg_t *cfg, 
+	uint8_t flags) {
+
+}
+
+
+mpu6050_err_t mpu6050_clear_interrupt (mpu6050_i2c_cfg_t *cfg) {
+
+}
+
+
+mpu6050_err_t mpu6050_set_sample_rate_divider (mpu6050_i2c_cfg_t *cfg, 
+	uint8_t divident) {
+
+}
+
+
+mpu6050_err_t mpu6050_configure_dlfp (mpu6050_i2c_cfg_t *cfg, uint8_t filter) {
+
+}
+
+
+mpu6050_err_t mpu6050_receive_fifo (mpu6050_i2c_cfg_t *cfg, 
+	mpu6050_data_t *data_p) {
+
+}
+
+
+mpu6050_err_t mpu6050_get_fifo_length (mpu6050_i2c_cfg_t *cfg, 
+	uint16_t *len_p) {
+
+}
+
+
+mpu6050_err_t mpu6050_fifo_reset (mpu6050_i2c_cfg_t *cfg) {
+
+}
