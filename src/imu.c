@@ -546,6 +546,20 @@ esp_err_t i2c_get_fifo_length (uint8_t slave_addr, uint16_t *len_p) {
 }
 
 
+esp_err_t i2c_fifo_reset (uint8_t slave_addr) {
+	esp_err_t err = ESP_OK;
+	uint8_t flags = CTRL_FIFO_RST;
+
+	// Write register 
+	if ((err = i2c_write_register(slave_addr, REG_USER_CTRL,
+		&flags, 1)) != ESP_OK) {
+		return err;
+	}
+
+	return err;
+}
+
+
 esp_err_t i2c_read_az (uint8_t slave_addr) {
 	esp_err_t err = ESP_OK;
 	uint8_t az_l, az_h;

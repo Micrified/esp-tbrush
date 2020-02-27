@@ -201,6 +201,7 @@ typedef uint8_t gyro_cfg_t;
 // MPU-6050 [R/W] User control register values (Hex)
 #define REG_USER_CTRL            0x6A
 #define CTRL_FIFO_EN             (1 << 6)
+#define CTRL_FIFO_RST            (1 << 2)
 
 
 /*
@@ -337,6 +338,14 @@ esp_err_t i2c_receive_fifo (uint8_t slave_addr, imu_data_t *data_p);
  * @return esp_err_t  ESP error value (ESP_OK if none)
 \*/
 esp_err_t i2c_get_fifo_length (uint8_t slave_addr, uint16_t *len_p);
+
+
+/*\
+ * @brief Resets the FIFO queue
+ * @param slave_addr  Address of the slave device
+ * @return esp_err_t ESP error value (ESP_OK if none)
+\*/
+esp_err_t i2c_fifo_reset (uint8_t slave_addr);
 
 
 // Attempts to read the az register of the device at given
