@@ -187,7 +187,7 @@ void app_main (void) {
     }
 
     // Configure interrupt behaviour (latching)
-    uint8_t imu_cfg_flags = INTR_CFG_LATCHING; // 0x0; // No latching
+    uint8_t imu_cfg_flags = 0x0; // INTR_CFG_LATCHING; // 0x0; // No latching
     if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
         goto esc;
     }
@@ -199,32 +199,37 @@ void app_main (void) {
         goto esc;
     }
 
-    // Configure FIFO
-    uint8_t imu_fifo_flags = FIFO_EN_GX | FIFO_EN_GY | FIFO_EN_GZ | FIFO_EN_ACCEL;
-    if ((err = imu_cfg_fifo(I2C_SLAVE_ADDR, imu_fifo_flags)) != ESP_OK) {
-        goto esc;
-    }
+        // Reset the FIFO
+    i2c_fifo_reset(I2C_SLAVE_ADDR);
 
     // Enable FIFO
     if ((err = imu_set_fifo(I2C_SLAVE_ADDR, true)) != ESP_OK) {
         goto esc;
     }
 
+    // Configure FIFO
+    uint8_t imu_fifo_flags = FIFO_EN_GX | FIFO_EN_GY | FIFO_EN_GZ | FIFO_EN_ACCEL;
+    if ((err = imu_cfg_fifo(I2C_SLAVE_ADDR, imu_fifo_flags)) != ESP_OK) {
+        goto esc;
+    }
+
+
+
 
     // Read the IMU a bit
     imu_data_t data;
-    uint16_t fifo_lengths[1024] = {0xFFFF};
+    uint16_t fifo_lengths[50] = {0xFFFF};
     uint16_t fifo_len;
     uint32_t pin_number;
-    for (int k = 0; k < 1024; ) {
+    while (1) {
 
         if (xQueueReceive(g_gpio_event_queue, &pin_number, 0x0)) {
             //printf("intr - GPIO [%d]\n", pin_number);
 
             // Read the FIFO out
-            // if ((err = i2c_receive_fifo(I2C_SLAVE_ADDR, &data)) != ESP_OK) {
-            //     break;
-            // }
+            if ((err = i2c_receive_fifo(I2C_SLAVE_ADDR, &data)) != ESP_OK) {
+                break;
+            }
 
             // Read the FIFO count
             if ((err = i2c_get_fifo_length(I2C_SLAVE_ADDR, &fifo_len)) != ESP_OK) {
@@ -237,10 +242,13 @@ void app_main (void) {
             }
 
             // Store the count in the table
-            fifo_lengths[k] = fifo_len;
+            // fifo_lengths[k++] = fifo_len;
+
+            // Reset FIFO
+            //i2c_fifo_reset(I2C_SLAVE_ADDR);
 
             // Print readings
-            //printf("%5d %5d %5d | %5d %5d %5d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
+            printf("%d, %d, %d, %d, %d, %d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
         }
 
         //printf("...\n");
@@ -260,7 +268,7 @@ void app_main (void) {
 
     // Print the table lengths
     printf("Lengths of the FIFO at each sampling update ... \n");
-    for (int j = 0; j < 1024 && fifo_lengths[j] != 0xFFFF; ++j) {
+    for (int j = 0; j < 50 && fifo_lengths[j] != 0xFFFF; ++j) {
         printf("%d: %u\n", j, fifo_lengths[j]);
     }
 
