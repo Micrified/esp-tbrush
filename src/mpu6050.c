@@ -23,15 +23,7 @@ static const char *mpu6050_err_str[MPU6050_ERR_MAX] = {
 
 /*
  *******************************************************************************
- *                        Internal Function Definitions                        *
- *******************************************************************************
-*/
-
-
-
-/*
- *******************************************************************************
- *                        External Function Definitions                        *
+ *                        General Function Definitions                         *
  *******************************************************************************
 */
 
@@ -72,12 +64,6 @@ mpu6050_err_t mpu6050_init (mpu6050_i2c_cfg_t *cfg) {
 }
 
 
-/*\
- * @brief Reads a byte from the I2C bus
- * @param cfg           The I2C device configuration
- * @param value_p       Address where byte value will be saved
- * @param mpu6050_err_t Error value (MPU6050_ERR_OK if none)
-\*/
 mpu6050_err_t mpu6050_receive_byte (mpu6050_i2c_cfg_t *cfg, uint8_t *value_p) {
 	esp_err_t err     = ESP_OK;
 	mpu6050_err_t ret = MPU6050_ERR_OK;
@@ -205,6 +191,22 @@ esc:
 }
 
 
+const char *mpu6050_err_to_str (mpu6050_err_t err) {
+	if (err > MPU6050_ERR_UNKNOWN) {
+		return NULL; 
+	} else {
+		return mpu6050_err_str[err];
+	}
+}
+
+
+/*
+ *******************************************************************************
+ *                   MPU-6050 Interface Function Definitions                   *
+ *******************************************************************************
+*/
+
+
 mpu6050_err_t mpu6050_configure_power (mpu6050_i2c_cfg_t *cfg, uint8_t flags) {
 	return mpu6050_write_register(cfg, REG_PWR_MGMT_1, flags, false);
 }
@@ -222,55 +224,108 @@ mpu6050_err_t mpu6050_configure_gyroscope (mpu6050_i2c_cfg_t *cfg,
 }
 
 
-mpu6050_err_t mpu6050_enable_fifo (mpu6050_i2c_cfg_t *cfg, bool enable) {
-	return mpu6050_write_register(cfg, );
+mpu6050_err_t mpu6050_enable_fifo (mpu6050_i2c_cfg_t *cfg, uint8_t flags) {
+	return mpu6050_write_register(cfg, REG_USER_CTRL, flags, false);
 }
 
 
 mpu6050_err_t mpu6050_configure_fifo (mpu6050_i2c_cfg_t *cfg, uint8_t flags) {
-
+	return mpu6050_write_register(cfg, REG_FIFO_CFG, flags, false);
 }
 
 
-mpu6050_err_t mpu6050_enable_interrupt (mpu6050_i2c_cfg_t *cfg, uint8_t flags) {
-
+mpu6050_err_t mpu6050_enable_interrupt (mpu6050_i2c_cfg_t *cfg, 
+	uint8_t flags) {
+	return mpu6050_write_register(cfg, REG_INTR_EN, flags, false);
 }
 
 
 mpu6050_err_t mpu6050_configure_interrupt (mpu6050_i2c_cfg_t *cfg, 
 	uint8_t flags) {
-
+	return mpu6050_write_register(cfg, REG_INTR_CFG, flags, false);
 }
 
 
 mpu6050_err_t mpu6050_clear_interrupt (mpu6050_i2c_cfg_t *cfg) {
-
+	return mpu6050_write_register(cfg, REG_INTR_STATUS, 
+		INTR_EN_FIFO_OFL, false);
 }
 
 
 mpu6050_err_t mpu6050_set_sample_rate_divider (mpu6050_i2c_cfg_t *cfg, 
 	uint8_t divident) {
-
+	return mpu6050_write_register(cfg, REG_SAMPLE_RATE_DIV, divident,
+		false);
 }
 
 
 mpu6050_err_t mpu6050_configure_dlfp (mpu6050_i2c_cfg_t *cfg, uint8_t filter) {
-
+	return mpu6050_write_register(cfg, REG_DLFP_CFG, filter, false);
 }
 
 
 mpu6050_err_t mpu6050_receive_fifo (mpu6050_i2c_cfg_t *cfg, 
 	mpu6050_data_t *data_p) {
+	uint8_t fifo[FIFO_BURST_LEN];
+	mpu6050_err_t err = MPU6050_ERR_OK;
 
+	// Read specified FIFO buffer size (depends on configuration set)
+	for (uint8_t i = 0; i < FIFO_BURST_LEN; ++i) {
+		if ((err = mpu6050_write_register(cfg, REG_FIFO, 0x0, 
+			true)) != MPU6050_ERR_OK) {
+			break;
+		}
+		if ((err = mpu6050_receive_byte(cfg, fifo + i)) 
+			!= MPU6050_ERR_OK) {
+			break;
+		}
+	}
+
+	// Configure data structure
+	data_p->ax = (int16_t)fifo[0]  << 8  | (int16_t)fifo[1];
+	data_p->ay = (int16_t)fifo[2]  << 8  | (int16_t)fifo[3];
+	data_p->az = (int16_t)fifo[4]  << 8  | (int16_t)fifo[5];
+	data_p->gx = (int16_t)fifo[6]  << 8  | (int16_t)fifo[7];
+	data_p->gy = (int16_t)fifo[8]  << 8  | (int16_t)fifo[9];
+	data_p->gz = (int16_t)fifo[10] << 8  | (int16_t)fifo[11];
+
+	return err;
 }
 
 
 mpu6050_err_t mpu6050_get_fifo_length (mpu6050_i2c_cfg_t *cfg, 
 	uint16_t *len_p) {
+	uint16_t len, uint8_t temp;
+	mpu6050_err_t err = MPU6050_ERR_OK;
 
-}
+	// Must request MSB first (see datasheet)
+	if ((err = mpu6050_write_register(cfg, REG_FIFO_COUNT_H, 0x0, true))
+		!= MPU6050_ERR_OK) {
+		return err;
+	}
+
+	// Read MSB
+	if ((err = mpu6050_receive_byte(cfg, &len)) != MPU6050_ERR_OK) {
+		return err;
+	} 
+
+	// Shift MSB
+	uint16_t <<= 8;
+
+	// Now request LSB second 
+	if ((err = mpu6050_write_register(cfg, REG_FIFO_COUNT_L, 0x0, true))
+		!= MPU6050_ERR_OK) {
+		return err;
+	}
+
+	// Read LSB
+	if ((err = mpu6050_receive_byte(cfg, &temp)) != MPU6050_ERR_OK) {
+		return err;
+	}
+
+	// Construct value and save
+	*len_p = (len |= temp);
 
 
-mpu6050_err_t mpu6050_fifo_reset (mpu6050_i2c_cfg_t *cfg) {
-
+	return err;
 }

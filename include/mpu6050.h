@@ -27,15 +27,15 @@
 */
 
 
-// Bit masks
-#define BIT0                    (1 << 0)
-#define BIT1                    (1 << 1)
-#define BIT2                    (1 << 2)
-#define BIT3                    (1 << 3)
-#define BIT4                    (1 << 4)
-#define BIT5                    (1 << 5)
-#define BIT6                    (1 << 6)
-#define BIT7                    (1 << 7)
+// BIT_ masks
+#define BIT_0                   (1 << 0)
+#define BIT_1                   (1 << 1)
+#define BIT_2                   (1 << 2)
+#define BIT_3                   (1 << 3)
+#define BIT_4                   (1 << 4)
+#define BIT_5                   (1 << 5)
+#define BIT_6                   (1 << 6)
+#define BIT_7                   (1 << 7)
 
 // [R] Accelerometer registers (X,Y,Z)
 #define REG_AX_L                0x3C
@@ -56,29 +56,29 @@
 // [R+W] Accelerometer configuration register + mode masks
 #define REG_A_CFG               0x1C
 #define A_CFG_2G                0x0
-#define A_CFG_4G                BIT3
-#define A_CFG_8G                BIT4
-#define A_CFG_16G               (BIT3 | BIT4)
+#define A_CFG_4G                BIT_3
+#define A_CFG_8G                BIT_4
+#define A_CFG_16G               (BIT_3 | BIT_4)
 
 // [R+W] Gyroscope configuration register + mode masks
 #define REG_G_CFG               0x1B
 #define G_CFG_250               0x0
-#define G_CFG_500               BIT3
-#define G_CFG_1000              BIT4
-#define G_CFG_2000              (BIT3 | BIT4)
+#define G_CFG_500               BIT_3
+#define G_CFG_1000              BIT_4
+#define G_CFG_2000              (BIT_3 | BIT_4)
 
 // [R+W] Power management (1) register + mode masks
 #define REG_PWR_MGMT_1           0x6B
-#define PWR_MGMT_1_RESET         BIT7
-#define PWR_MGMT_1_SLEEP         BIT6
+#define PWR_MGMT_1_RESET         BIT_7
+#define PWR_MGMT_1_SLEEP         BIT_6
 
 // [R+W] FIFO configuration register + mode masks
 #define REG_FIFO_CFG             0x23
-#define FIFO_CFG_TEMP            BIT7
-#define FIFO_CFG_GX              BIT6
-#define FIFO_CFG_GY              BIT5
-#define FIFO_CFG_GZ              BIT4
-#define FIFO_CFG_AXYZ            BIT3
+#define FIFO_CFG_TEMP            BIT_7
+#define FIFO_CFG_GX              BIT_6
+#define FIFO_CFG_GY              BIT_5
+#define FIFO_CFG_GZ              BIT_4
+#define FIFO_CFG_AXYZ            BIT_3
 
 // [R] FIFO count registers
 #define REG_FIFO_COUNT_L         0x73
@@ -102,26 +102,37 @@
 
 // [R+W] Interrupt enable register + masks
 #define REG_INTR_EN              0x38
-#define INTR_EN_DATA_RDY         BIT0
-#define INTR_EN_FIFO_OFL         BIT4
+#define INTR_EN_DATA_RDY         BIT_0
+#define INTR_EN_FIFO_OFL         BIT_4
 
 // [R+W] Interrupt configuration register + masks
 #define REG_INTR_CFG             0x37
-#define INTR_CFG_ACTIVE_LOW      BIT7
-#define INTR_CFG_OPEN_DRAIN      BIT6
-#define INTR_CFG_LATCHING        BIT5
-#define INTR_CFG_ANY_CLR         BIT4
-#define INTR_CFG_FSYNC_LVL       BIT3
-#define INTR_CFG_FSYNC_EN        BIT2
-#define INTR_CFG_FSYNC_BYPASS    BIT1
+#define INTR_CFG_ACTIVE_LOW      BIT_7
+#define INTR_CFG_OPEN_DRAIN      BIT_6
+#define INTR_CFG_LATCHING        BIT_5
+#define INTR_CFG_ANY_CLR         BIT_4
+#define INTR_CFG_FSYNC_LVL       BIT_3
+#define INTR_CFG_FSYNC_EN        BIT_2
+#define INTR_CFG_FSYNC_BYPASS    BIT_1
 
 // [R] Interrupt status register
 #define REG_INTR_STATUS          0x3A
 
 // [R+W] User control register + masks
 #define REG_USER_CTRL            0x6A
-#define USER_CTRL_FIFO_EN        BIT6
-#define USER_CTRL_FIFO_RST       BIT2
+#define USER_CTRL_FIFO_EN        BIT_6
+#define USER_CTRL_FIFO_RST       BIT_2
+
+
+/*
+ *******************************************************************************
+ *                             Symbolic Constants                              *
+ *******************************************************************************
+*/
+
+
+// Number of elements to read from FIFO at a time (dependent on configuration)
+#define FIFO_BURST_LEN           12
 
 
 /*
@@ -165,7 +176,7 @@ typedef enum {
 
 /*
  *******************************************************************************
- *                        General Function Definitions                         *
+ *                        General Function Declarations                        *
  *******************************************************************************
 */
 
@@ -203,11 +214,21 @@ mpu6050_err_t mpu6050_write_register (mpu6050_i2c_cfg_t *cfg, uint8_t reg,
 	uint8_t value, bool request);
 
 
+/*\
+ * @brief Returns a string describing the given error value
+ * @note  Returns NULL if error is out of bounds
+ * @param err  The error enumeral
+ * @return const char * Pointer to descriptive string
+\*/
+const char *mpu6050_err_to_str (mpu6050_err_t err);
+
+
 /*
  *******************************************************************************
- *                        IMU-6050 Function Definitions                        *
+ *                       IMU-6050 Interface Declarations                       *
  *******************************************************************************
 */
+
 
 
 /*\
@@ -245,10 +266,13 @@ mpu6050_err_t mpu6050_configure_gyroscope (mpu6050_i2c_cfg_t *cfg,
  * @brief Allows the FIFO to be enabled or disabled by writing
  *        to the user control register (See datasheet 4.29)
  * @param cfg             The device configuration structure
- * @param enable          Whether to enable or disable the FIFO
+ * @param flags           Configurations flags. If you want
+ *                        to enable the FIFO correctly, you
+ *                        should set the following: 
+ *                        (USER_CTRL_FIFO_EN | USER_CTRL_FIFO_RST)
  * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
 \*/
-mpu6050_err_t mpu6050_enable_fifo (mpu6050_i2c_cfg_t *cfg, bool enable);
+mpu6050_err_t mpu6050_enable_fifo (mpu6050_i2c_cfg_t *cfg, uint8_t flags);
 
 
 /*\
@@ -338,14 +362,6 @@ mpu6050_err_t mpu6050_receive_fifo (mpu6050_i2c_cfg_t *cfg,
 \*/
 mpu6050_err_t mpu6050_get_fifo_length (mpu6050_i2c_cfg_t *cfg, 
 	uint16_t *len_p);
-
-
-/*\
- * @brief Resets the FIFO via user control (See datasheet 4.29)
- * @param cfg             The device configuration structure
- * @return mpu6050_err_t  Error value (MPU6050_ERR_OK if none)
-\*/
-mpu6050_err_t mpu6050_fifo_reset (mpu6050_i2c_cfg_t *cfg);
 
 
 #endif
