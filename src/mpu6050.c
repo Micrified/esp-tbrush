@@ -53,7 +53,7 @@ mpu6050_err_t mpu6050_init (mpu6050_i2c_cfg_t *cfg) {
 	// Install I2C driver (only LOWMED can be handled in C, not HIGH)
 	if ((err = i2c_driver_install(cfg->i2c_port, I2C_MODE_MASTER, 0x0, 0x0,
 		ESP_INTR_FLAG_LOWMED)) != ESP_OK) {
-		if (err = ESP_ERR_INVALID_ARG) {
+		if (err == ESP_ERR_INVALID_ARG) {
 			return MPU6050_ERR_DRIVER_INSTALL_FAIL;
 		} else {
 			return MPU6050_ERR_INVALID_ARGUMENT;
@@ -109,7 +109,7 @@ mpu6050_err_t mpu6050_receive_byte (mpu6050_i2c_cfg_t *cfg, uint8_t *value_p) {
 			ret = MPU6050_ERR_NO_SLAVE_ACK;
 		} else if (err == ESP_ERR_INVALID_STATE) {
 			ret = MPU6050_ERR_INVALID_STATE;
-		} else if (err = ESP_ERR_TIMEOUT) {
+		} else if (err == ESP_ERR_TIMEOUT) {
 			ret = MPU6050_ERR_OPERATION_TIMEOUT;
 		} else {
 			ret = MPU6050_ERR_UNKNOWN;
@@ -120,7 +120,7 @@ mpu6050_err_t mpu6050_receive_byte (mpu6050_i2c_cfg_t *cfg, uint8_t *value_p) {
 esc:
 
 	// Destroy (recycle) command queue
-	i2c_cmd_link_create(cmd);
+	i2c_cmd_link_delete(cmd);
 
 	return ret;
 }
@@ -130,7 +130,6 @@ mpu6050_err_t mpu6050_write_register (mpu6050_i2c_cfg_t *cfg, uint8_t reg,
 	uint8_t value, bool request) {
 	esp_err_t err      = ESP_OK;
 	mpu6050_err_t ret  = MPU6050_ERR_OK;
-	uint8_t tx_data[2] = [reg, value];
 
 	// Create I2C command buffer
 	i2c_cmd_handle_t cmd = i2c_cmd_link_create();
@@ -150,12 +149,18 @@ mpu6050_err_t mpu6050_write_register (mpu6050_i2c_cfg_t *cfg, uint8_t reg,
 		goto esc;
 	}
 
-	// Queue transmission data (if not a request)
-	if (request == false && 
-		i2c_master_write(cmd, tx_data, 2, true) != ESP_OK) {
+	// Queue the register
+	if (i2c_master_write_byte(cmd, reg, true) != ESP_OK) {
 		ret = MPU6050_ERR_INVALID_ARGUMENT;
 		goto esc;
 	}
+
+	// Queue data (if not a request, but a write)
+	if (request == false && i2c_master_write_byte(cmd, value, true) 
+		!= ESP_OK) {
+		ret = MPU6050_ERR_INVALID_ARGUMENT;
+		goto esc;
+	} 
 
 	// Queue stop command
 	if (i2c_master_stop(cmd) != ESP_OK) {
@@ -174,7 +179,7 @@ mpu6050_err_t mpu6050_write_register (mpu6050_i2c_cfg_t *cfg, uint8_t reg,
 			ret = MPU6050_ERR_NO_SLAVE_ACK;
 		} else if (err == ESP_ERR_INVALID_STATE) {
 			ret = MPU6050_ERR_INVALID_STATE;
-		} else if (err = ESP_ERR_TIMEOUT) {
+		} else if (err == ESP_ERR_TIMEOUT) {
 			ret = MPU6050_ERR_OPERATION_TIMEOUT;
 		} else {
 			ret = MPU6050_ERR_UNKNOWN;
@@ -185,7 +190,7 @@ mpu6050_err_t mpu6050_write_register (mpu6050_i2c_cfg_t *cfg, uint8_t reg,
 esc:
 	
 	// Destroy (recycle) command queue
-	i2c_cmd_link_create(cmd);
+	i2c_cmd_link_delete(cmd);
 
 	return ret;
 }
@@ -220,7 +225,7 @@ mpu6050_err_t mpu6050_configure_accelerometer (mpu6050_i2c_cfg_t *cfg,
 
 mpu6050_err_t mpu6050_configure_gyroscope (mpu6050_i2c_cfg_t *cfg, 
 	uint8_t flags) {
-	return mpu6050_write_register(cfg, REG_G_CFG, flags, false)
+	return mpu6050_write_register(cfg, REG_G_CFG, flags, false);
 }
 
 
@@ -295,7 +300,8 @@ mpu6050_err_t mpu6050_receive_fifo (mpu6050_i2c_cfg_t *cfg,
 
 mpu6050_err_t mpu6050_get_fifo_length (mpu6050_i2c_cfg_t *cfg, 
 	uint16_t *len_p) {
-	uint16_t len, uint8_t temp;
+	uint16_t len;
+	uint8_t temp;
 	mpu6050_err_t err = MPU6050_ERR_OK;
 
 	// Must request MSB first (see datasheet)
@@ -305,12 +311,12 @@ mpu6050_err_t mpu6050_get_fifo_length (mpu6050_i2c_cfg_t *cfg,
 	}
 
 	// Read MSB
-	if ((err = mpu6050_receive_byte(cfg, &len)) != MPU6050_ERR_OK) {
+	if ((err = mpu6050_receive_byte(cfg, &temp)) != MPU6050_ERR_OK) {
 		return err;
 	} 
 
 	// Shift MSB
-	uint16_t <<= 8;
+	len = (uint16_t)temp << 8;
 
 	// Now request LSB second 
 	if ((err = mpu6050_write_register(cfg, REG_FIFO_COUNT_L, 0x0, true))

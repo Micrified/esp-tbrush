@@ -180,7 +180,7 @@ void app_main (void) {
     // if ((err = imu_set_mode(I2C_SLAVE_ADDR, false)) != ESP_OK) {
     //     goto esc;
     // }
-    uint8_t flags = PWR_MGMT_1_RESET;
+    uint8_t flags = 0x0;
     if (mpu6050_configure_power(&i2c_cfg, flags) != MPU6050_ERR_OK) {
         ERR("configure_power");
         goto esc;
@@ -280,7 +280,7 @@ void app_main (void) {
     }
 
 
-
+    ESP_LOGI("APP", "Setup done...");
 
     // Read the IMU a bit
     //imu_data_t data;
