@@ -23,9 +23,11 @@
 #include "esp_spi_flash.h"
 #include "driver/i2c.h"
 #include "driver/gpio.h"
-//#include "imu.h"
 #include "mpu6050.h"
 #include "errors.h"
+#include "imu_task.h"
+#include "signals.h"
+#include "config.h"
 
 /*
  *******************************************************************************
@@ -171,15 +173,7 @@ void app_main (void) {
         goto esc;
     }
 
-    // // Initialize I2C
-    // if ((err = imu_init(I2C_SDA_PIN, I2C_SCL_PIN, I2C_SLAVE_ADDR)) != ESP_OK) {
-    //     goto esc;
-    // }
-
-    // Reset IMU
-    // if ((err = imu_set_mode(I2C_SLAVE_ADDR, false)) != ESP_OK) {
-    //     goto esc;
-    // }
+    // Initialize I2C
     uint8_t flags = 0x0;
     if (mpu6050_configure_power(&i2c_cfg, flags) != MPU6050_ERR_OK) {
         ERR("configure_power");
@@ -187,10 +181,6 @@ void app_main (void) {
     }
 
     // Configure accelerometer sensitivity
-    // if ((err = imu_cfg_accelerometer(I2C_SLAVE_ADDR, 
-    //     ACCEL_CFG_RANGE_8G)) != ESP_OK) {
-    //     goto esc;
-    // }
     if (mpu6050_configure_accelerometer(&i2c_cfg, A_CFG_8G) 
         != MPU6050_ERR_OK) {
         ERR("configure_accelerometer");
@@ -198,42 +188,26 @@ void app_main (void) {
     }
 
     // Configure gyroscope sensitivity
-    // if ((err = imu_cfg_gyroscope(I2C_SLAVE_ADDR, 
-    //     GYRO_CFG_RANGE_500)) != ESP_OK) {
-    //     goto esc;
-    // }
     if (mpu6050_configure_gyroscope(&i2c_cfg, G_CFG_500) != MPU6050_ERR_OK) {
         ERR("configure_gyroscope");
         goto esc;
     }
 
     // Configure the DLFP 
-    // if ((err = imu_set_dlfp(I2C_SLAVE_ADDR, DLFP_FILTER_2)) != ESP_OK) {
-    //     goto esc;
-    // }
     if (mpu6050_configure_dlfp(&i2c_cfg, DLFP_CFG_FILTER_2) 
         != MPU6050_ERR_OK) {
         ERR("configure_dlfp");
         goto esc;
     }
 
-
-
     // Set the sampling rate (~100Hz)
-    // if ((err = imu_set_sampling_rate(I2C_SLAVE_ADDR, 0x9)) != ESP_OK) {
-    //     goto esc;
-    // }
     if (mpu6050_set_sample_rate_divider(&i2c_cfg, 0x9) != MPU6050_ERR_OK) {
         ERR("set_sample_rate_divider");
         goto esc;
     }
 
 
-    // Configure interrupt behaviour (latching)
-    // uint8_t imu_cfg_flags = 0x0; // INTR_CFG_LATCHING; // 0x0; // No latching
-    // if ((err = imu_cfg_intr(I2C_SLAVE_ADDR, imu_cfg_flags)) != ESP_OK) {
-    //     goto esc;
-    // }
+    // Configure interrupt behaviour
     flags = 0x0;
     if (mpu6050_configure_interrupt(&i2c_cfg, flags) != MPU6050_ERR_OK) {
         ERR("configure_interrupt");
@@ -242,24 +216,11 @@ void app_main (void) {
 
 
     // Enable interrupts from full refresh of sensors
-    // IDEA: Wait until sensors refreshed hits -> read FIFO -> reset interrupt
-    // uint8_t imu_intr_flags = INTR_DATA_RDY;
-    // if ((err = imu_set_intr(I2C_SLAVE_ADDR, imu_intr_flags)) != ESP_OK) {
-    //     goto esc;
-    // }
     flags = INTR_EN_DATA_RDY;
     if (mpu6050_enable_interrupt(&i2c_cfg, flags) != MPU6050_ERR_OK) {
         ERR("enable_interrupt");
         goto esc;
     }
-
-        // Reset the FIFO
-    // i2c_fifo_reset(I2C_SLAVE_ADDR);
-
-    // Enable FIFO
-    // if ((err = imu_set_fifo(I2C_SLAVE_ADDR, true)) != ESP_OK) {
-    //     goto esc;
-    // }
 
     // Enable the FIFO and reset it
     flags = USER_CTRL_FIFO_EN | USER_CTRL_FIFO_RST;
@@ -269,10 +230,6 @@ void app_main (void) {
     }
 
     // Configure FIFO
-    // uint8_t imu_fifo_flags = FIFO_EN_GX | FIFO_EN_GY | FIFO_EN_GZ | FIFO_EN_ACCEL;
-    // if ((err = imu_cfg_fifo(I2C_SLAVE_ADDR, imu_fifo_flags)) != ESP_OK) {
-    //     goto esc;
-    // }
     flags = FIFO_CFG_GX | FIFO_CFG_GY | FIFO_CFG_GZ | FIFO_CFG_AXYZ;
     if (mpu6050_configure_fifo(&i2c_cfg, flags) != MPU6050_ERR_OK) {
         ERR("configure_fifo");
@@ -283,11 +240,8 @@ void app_main (void) {
     ESP_LOGI("APP", "Setup done...");
 
     // Read the IMU a bit
-    //imu_data_t data;
     mpu6050_data_t data;
 
-    // uint16_t fifo_lengths[50] = {0xFFFF};
-    // uint16_t fifo_len;
     uint32_t pin_number;
     while (1) {
 
@@ -295,53 +249,14 @@ void app_main (void) {
             //printf("intr - GPIO [%d]\n", pin_number);
 
             // Read the FIFO out
-            // if ((err = i2c_receive_fifo(I2C_SLAVE_ADDR, &data)) != ESP_OK) {
-            //     break;
-            // }
             if (mpu6050_receive_fifo(&i2c_cfg, &data) != MPU6050_ERR_OK) {
                 break;
             }
 
-            // Read the FIFO count
-            // if ((err = i2c_get_fifo_length(I2C_SLAVE_ADDR, &fifo_len)) != ESP_OK) {
-            //     break;
-            // }
-
-            // Clear the interrupt by setting the pin
-            // if ((err = imu_clr_intr(I2C_SLAVE_ADDR)) != ESP_OK) {
-            //     break;
-            // }
-
-            // Store the count in the table
-            // fifo_lengths[k++] = fifo_len;
-
-            // Reset FIFO
-            //i2c_fifo_reset(I2C_SLAVE_ADDR);
-
             // Print readings
             printf("%d, %d, %d, %d, %d, %d\n", data.ax, data.ay, data.az, data.gx, data.gy, data.gz);
         }
-
-        //printf("...\n");
-
-        // // Print az
-        // if (i2c_read_az(I2C_SLAVE_ADDR) != ESP_OK) {
-        //     ERR("Bad read!");
-        // }
-
-        // Print gz
-        // if (i2c_read_gz(I2C_SLAVE_ADDR) != ESP_OK) {
-        //     ERR("Bad read!");
-        // }
-
-        //vTaskDelay(portTICK_PERIOD_MS);
     }
-
-    // Print the table lengths
-    // printf("Lengths of the FIFO at each sampling update ... \n");
-    // for (int j = 0; j < 50 && fifo_lengths[j] != 0xFFFF; ++j) {
-    //     printf("%d: %u\n", j, fifo_lengths[j]);
-    // }
 
 esc:
 
