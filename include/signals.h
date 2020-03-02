@@ -1,6 +1,7 @@
 #if !defined(SIGNALS_H)
 #define SIGNALS_H
 
+
 /*
  *******************************************************************************
  *                        (C) Copyright 2020 IoT Seminar                       *
@@ -18,6 +19,25 @@
 
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "freertos/event_groups.h"
+
+
+/*
+ *******************************************************************************
+ *                             Symbolic Constants                              *
+ *******************************************************************************
+*/
+
+
+// General signal bits
+#define SIGNAL_TASK_FAULT           (1 << 7)
+
+
+// IMU signal bits
+#define IMU_SIGNAL_CALIBRATE        (1 << 0)
+#define IMU_SIGNAL_MASK             IMU_SIGNAL_CALIBRATE
 
 
 /*

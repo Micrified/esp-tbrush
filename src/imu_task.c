@@ -16,6 +16,12 @@ static xQueueHandle g_gpio_event_queue = NULL;
 uint16_t g_gpio_pin_mask = ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
 
 
+// Internal calibration data structure
+mpu6050_data_t g_calibration_data = (mpu6050_data_t) {
+	.ax = 0, .ay = 0, .az = 0, .gx = 0, .gy = 0, .gz = 0
+};
+
+
 /*
  *******************************************************************************
  *                        Internal Function Definitions                        *
@@ -32,13 +38,13 @@ static void IRAM_ATTR g_gpio_isr_handler (void *arg) {
 }
 
 
-// Performs the I2C configuration for the MPU-6050 IMU
-static mpu6050_err_t init_imu (void) {
+// Performs the I2C configuration for the MPU-6050 IMU. Saves handle
+static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
 	mpu6050_err_t err = MPU6050_ERR_OK;
 	uint8_t flags;
 
     // Configure the MPU-6050 I2C data structure
-    mpu6050_i2c_cfg_t i2c_cfg = (mpu6050_i2c_cfg_t) {
+    static mpu6050_i2c_cfg_t i2c_cfg = (mpu6050_i2c_cfg_t) {
         .sda_pin        = I2C_SDA_PIN,
         .scl_pin        = I2C_SCL_PIN,
         .slave_addr     = I2C_IMU_SLAVE_ADDR,
@@ -80,8 +86,8 @@ static mpu6050_err_t init_imu (void) {
     	return err;
     }
 
-    // Set the sampling rate to ~100Hz
-    flags = 0x9;
+    // Set the sampling rate to ~50Hz
+    flags = 19;
     if ((err = mpu6050_set_sample_rate_divider(&i2c_cfg, flags)) 
     	!= MPU6050_ERR_OK) {
     	return err;
@@ -114,6 +120,9 @@ static mpu6050_err_t init_imu (void) {
     	return err;
     }
 
+    // Save the configuration
+    *handle = &i2c_cfg;
+
     return err;
 }
 
@@ -125,10 +134,14 @@ static mpu6050_err_t init_imu (void) {
 */
 
 
-void *task_imu (void *args) {
+void task_imu (void *args) {
 	esp_err_t err = ESP_OK;
 	mpu6050_data_t data;
-	uint32_t signals;
+	uint32_t signals, pin_id, calibration_ticks = 0;
+	uint8_t mode = 0x0;
+	uint16_t len;
+	mpu6050_i2c_cfg_t *i2c_cfg_p = NULL;
+	uint64_t pin_bit_mask = ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
 	const TickType_t event_block_time = 1;
 
 	// Initialize the event-queue
@@ -186,14 +199,83 @@ void *task_imu (void *args) {
 
     // Initialize and configure the MPU-6050 IMU
     mpu6050_err_t res;
-    if ((res = init_imu()) != MPU6050_ERR_OK) {
-    	ERR("%s", mpu6050_err_to_str(res));
+    if ((res = init_imu(&i2c_cfg_p)) != MPU6050_ERR_OK) {
+    	ERR(mpu6050_err_to_str(res));
     	goto esc;
     }
 
     do {
 
-    	signals = xEventGroupWaitBits();
+    	// Check for signals within the given block time
+    	signals = xEventGroupWaitBits(g_signal_group, IMU_SIGNAL_MASK, 
+    		pdTRUE, pdFALSE, event_block_time);
+
+
+    	// Check if calibration is necessary
+    	if (signals & IMU_SIGNAL_CALIBRATE) {
+    		mode |= IMU_TASK_MODE_CALIBRATION;
+    	}
+
+
+    	// Process a sample
+    	if (xQueueReceive(g_gpio_event_queue, &pin_id, 0x0)) {
+
+    		// Check the FIFO length
+    		if (mpu6050_get_fifo_length(i2c_cfg_p, &len) != MPU6050_ERR_OK) {
+    			ERR("FIFO length fetch error!");
+    			break;
+    		}
+    		if (len < FIFO_BURST_LEN) {
+    			continue;
+    		}
+
+
+    		// Fetch data from FIFO
+    		if (mpu6050_receive_fifo(i2c_cfg_p, &data) != MPU6050_ERR_OK) {
+    			ERR("FIFO data fetch error!");
+    			break;
+    		}
+
+    		// If not in calibration mode, just print the data for now
+    		if ((mode & IMU_TASK_MODE_CALIBRATION) == 0) {
+    			printf("%d, %d, %d, %d, %d, %d\n", 
+    				data.ax - g_calibration_data.ax,
+    				data.ay - g_calibration_data.ay,
+    				data.az - g_calibration_data.az,
+    				data.gx - g_calibration_data.gx,
+    				data.gy - g_calibration_data.gy,
+    				data.gz - g_calibration_data.gz);
+    			continue;
+    		}
+
+    		// If calibration is complete, unset flag and counter
+    		if (calibration_ticks >= IMU_CALIBRATION_SAMPLE_SIZE) {
+    			mode &= ~(IMU_TASK_MODE_CALIBRATION);
+    			calibration_ticks = 0;
+    			ESP_LOGI(IMU_TASK_NAME, "Calibration Complete");
+    			printf("ax: %d, ay: %d, az: %d, gx: %d, gy: %d, gz: %d\n", 
+    				g_calibration_data.ax,
+    				g_calibration_data.ay,
+    				g_calibration_data.az,
+    				g_calibration_data.gx,
+    				g_calibration_data.gy,
+    				g_calibration_data.gz);    			
+    			break;
+    		}
+
+    		// Increment calibration ticks
+    		calibration_ticks++;
+
+    		// Otherwise continue calibration: AVG(n) = [(n-1)*Avg(n-1) + X(n)]/n
+    		g_calibration_data.ax = g_calibration_data.ax + ((data.ax - g_calibration_data.ax) / calibration_ticks);
+    		g_calibration_data.ay = g_calibration_data.ay + ((data.ay - g_calibration_data.ay) / calibration_ticks);
+    		g_calibration_data.az = g_calibration_data.az + ((data.az - g_calibration_data.az) / calibration_ticks);
+
+    		g_calibration_data.gx = g_calibration_data.gx + ((data.gx - g_calibration_data.gx) / calibration_ticks);
+    		g_calibration_data.gy = g_calibration_data.gy + ((data.gy - g_calibration_data.gy) / calibration_ticks);
+    		g_calibration_data.gz = g_calibration_data.gz + ((data.gz - g_calibration_data.gz) / calibration_ticks);
+
+    	}
 
 
     } while (1);
@@ -201,7 +283,8 @@ void *task_imu (void *args) {
 
 	// Escape label: Requires system reset
 esc:
-	ERR("%s is suspended due to unexpected circumstances!", IMU_TASK_NAME);
+	ERR(IMU_TASK_NAME " is suspended due to unexpected circumstances!");
+
 	// Signal system reset
-	// xEventGroupSetBits
+	xEventGroupSetBits(g_signal_group, SIGNAL_TASK_FAULT);
 }

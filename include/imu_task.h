@@ -20,10 +20,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
+#include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "mpu6050.h"
 #include "config.h"
 #include "errors.h"
+#include "signals.h"
+
 
 /*
  *******************************************************************************
@@ -37,11 +40,11 @@
 
 
 // The task priority level
-#define IMU_TASK_PRIORITY                 
+#define IMU_TASK_PRIORITY                  tskIDLE_PRIORITY                
 
 
-// The task stack size (in words, not bytes; word = 4 bytes for 32-bit system)
-#define IMU_TASK_STACK_SIZE                1024
+// The task stack size (in bytes - not words like traditional FreeRTOS)
+#define IMU_TASK_STACK_SIZE                4096
 
 
 // Whether or not internal pullups should be enabled for SCL and SDA
@@ -50,6 +53,14 @@
 
 // The number of interrupt events the internal xEventQueue can hold
 #define IMU_INTERRUPT_QUEUE_SIZE           16
+
+
+// The number of samples to average when calibrating the system
+#define IMU_CALIBRATION_SAMPLE_SIZE        100
+
+
+// Mode 1: Calibration
+#define IMU_TASK_MODE_CALIBRATION          (1 << 0)
 
 
 /*
@@ -65,7 +76,7 @@
  * @param args Generic task parameter pointer
  * @return void
 */
-void *task_imu (void *args);
+void task_imu (void *args);
 
 
 
