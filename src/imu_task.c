@@ -137,8 +137,9 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
 void task_imu (void *args) {
 	esp_err_t err = ESP_OK;
 	mpu6050_data_t data;
-	uint32_t signals, pin_id, calibration_ticks = 0;
-	uint8_t mode = 0x0;
+	uint32_t signals, pin_id;
+	int16_t calibration_ticks = 0;
+	uint8_t mode = 1;
 	uint16_t len;
 	mpu6050_i2c_cfg_t *i2c_cfg_p = NULL;
 	uint64_t pin_bit_mask = ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
@@ -259,8 +260,8 @@ void task_imu (void *args) {
     				g_calibration_data.az,
     				g_calibration_data.gx,
     				g_calibration_data.gy,
-    				g_calibration_data.gz);    			
-    			break;
+    				g_calibration_data.gz);
+    			continue;
     		}
 
     		// Increment calibration ticks
