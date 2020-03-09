@@ -46,9 +46,15 @@
  *******************************************************************************
 */
 
+/* INFO: All global data item must be init by main prior to task launch */
+
 
 // [EXTERN] Global event signal group
 extern EventGroupHandle_t g_signal_group;
+
+
+// [EXTERN] Global UI action queue
+extern xQueueHandle g_ui_action_queue;
 
 
 #endif

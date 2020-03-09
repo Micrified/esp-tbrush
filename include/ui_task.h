@@ -1,17 +1,18 @@
-#if !defined(IMU_TASK_H)
-#define IMU_TASK_H
+#if !defined(UI_TASK_H)
+#define UI_TASK_H
 
 /*
  *******************************************************************************
  *                        (C) Copyright 2020 IoT Seminar                       *
- * Created: 01/03/2020                                                         *
+ * Created: 09/03/2020                                                         *
  *                                                                             *
  * Programmer(s):                                                              *
  * - Sonnya Dellarosa                                                          *
  * - Charles Randolph                                                          *
  *                                                                             *
  * Description:                                                                *
- *  IMU interface task                                                         *
+ *  Task that controls user-facing devices for giving feedback. Callable from  *
+ *  other tasks                                                                *
  *                                                                             *
  *******************************************************************************
 */
@@ -21,12 +22,11 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "freertos/event_groups.h"
+#include "driver/gpio.h"
 #include "esp_system.h"
-#include "mpu6050.h"
 #include "config.h"
 #include "errors.h"
 #include "signals.h"
-#include "ui_task.h"
 
 
 /*
@@ -37,31 +37,45 @@
 
 
 // The task name
-#define IMU_TASK_NAME                     "IMU_Task"
+#define UI_TASK_NAME              "UI_Task"
 
 
 // The task priority level
-#define IMU_TASK_PRIORITY                  tskIDLE_PRIORITY                
+#define UI_TASK_PRIORITY           tskIDLE_PRIORITY
 
 
-// The task stack size (in bytes - not words like traditional FreeRTOS)
-#define IMU_TASK_STACK_SIZE                4096
+// The task stack size (in bytes - not like traditional FreeRTOS)
+#define UI_TASK_STACK_SIZE          2048
 
 
-// Whether or not internal pullups should be enabled for SCL and SDA
-#define IMU_ENABLE_INTERNAL_PULLUPS        false
+// The task poll period (in ms)
+#define UI_TASK_POLL_PERIOD         200
 
 
-// The number of interrupt events the internal xEventQueue can hold
-#define IMU_INTERRUPT_QUEUE_SIZE           16
+// The size of the UI queue
+#define UI_ACTION_QUEUE_SIZE        16
 
 
-// The number of samples to average when calibrating the system
-#define IMU_CALIBRATION_SAMPLE_SIZE        100
+// Bit-flag for the buzzer action
+#define UI_ACTION_BUZZER            (1 << 0)
 
 
-// Mode 1: Calibration
-#define IMU_TASK_MODE_CALIBRATION          (1 << 0)
+// Bit-flag for the vibrating motor
+#define UI_ACTION_VIBRATION          (1 << 1)
+
+
+/*
+ *******************************************************************************
+ *                              Type Definitions                               *
+ *******************************************************************************
+*/
+
+
+// Type describing a UI action 
+typedef struct {
+	uint8_t flags;              // Actions to perform
+	uint16_t duration;          // Duration of the action (ms)
+} ui_action_t;
 
 
 /*
@@ -72,11 +86,11 @@
 
 
 /*\
- * @brief The IMU task. 
+ * @brief the UI task
  * @param args Generic task parameter pointer
  * @return void
 \*/
-void task_imu (void *args);
+void task_ui (void *args);
 
 
 #endif

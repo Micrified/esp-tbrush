@@ -29,10 +29,25 @@
 
 
 // SDA pin for I2C bus
-#define I2C_SDA_PIN                   21
+#define I2C_SDA_PIN                     21
 
 // SCL pin for I2C bus
-#define I2C_SCL_PIN                   22
+#define I2C_SCL_PIN                     22
+
+
+/*
+ *******************************************************************************
+ *                       GPIO Device Symbolic Constants                        *
+ *******************************************************************************
+*/
+
+
+// GPIO for the buzzer
+#define GPIO_BUZZER_PIN                 23
+
+
+// GPIO for the vibration motor
+#define GPIO_VIBRATION_PIN              0
 
 
 /*

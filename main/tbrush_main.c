@@ -29,7 +29,7 @@
 #include "imu_task.h"
 #include "signals.h"
 #include "config.h"
-
+#include "ui_task.h"
 
 /*
  *******************************************************************************
@@ -54,6 +54,10 @@
 EventGroupHandle_t g_signal_group;
 
 
+// UI Action queue
+xQueueHandle g_ui_action_queue = NULL;
+
+
 /*
  *******************************************************************************
  *                            Function Definitions                             *
@@ -64,6 +68,7 @@ EventGroupHandle_t g_signal_group;
 void app_main (void) {
     esp_err_t err = ESP_OK;
     TaskHandle_t imu_task_handle = NULL;
+    TaskHandle_t ui_task_handle  = NULL;
     TaskHandle_t ble_task_handle = NULL;
 
     /*\  
@@ -95,6 +100,13 @@ void app_main (void) {
         ESP_LOGI("Startup", "Signal group initialized");
     }
 
+    // Initialize the action-queue
+    if ((g_ui_action_queue = xQueueCreate(UI_ACTION_QUEUE_SIZE,
+        sizeof(ui_action_t))) == NULL) {
+        ERR("Insufficient memory to create action queue!");
+        goto reboot;
+    }
+
     // Create the IMU task pinned to core
     if (xTaskCreatePinnedToCore(task_imu, IMU_TASK_NAME, IMU_TASK_STACK_SIZE, NULL,
         IMU_TASK_PRIORITY, &imu_task_handle, APPLICATION_CORE) != pdPASS) {
@@ -103,6 +115,16 @@ void app_main (void) {
         goto reboot;
     } else {
         ESP_LOGI("Startup", "Launched " IMU_TASK_NAME);
+    }
+
+    // Create the UI task pinned to core
+    if (xTaskCreatePinnedToCore(task_ui, UI_TASK_NAME, UI_TASK_STACK_SIZE, NULL,
+        UI_TASK_PRIORITY, &ui_task_handle, PROTOCOL_CORE) != pdPASS) {
+        vTaskDelete(ui_task_handle);
+        ERR("Unable to create task: " UI_TASK_NAME);
+        goto reboot;
+    } else {
+        ESP_LOGI("Startup", "Launched " UI_TASK_NAME);
     }
 
 

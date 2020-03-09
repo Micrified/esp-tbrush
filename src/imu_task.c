@@ -12,10 +12,6 @@
 static xQueueHandle g_gpio_event_queue = NULL;
 
 
-// The GPIO pin bit-mask
-uint16_t g_gpio_pin_mask = ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
-
-
 // Internal calibration data structure
 mpu6050_data_t g_calibration_data = (mpu6050_data_t) {
 	.ax = 0, .ay = 0, .az = 0, .gx = 0, .gy = 0, .gz = 0
@@ -261,6 +257,18 @@ void task_imu (void *args) {
     				g_calibration_data.gx,
     				g_calibration_data.gy,
     				g_calibration_data.gz);
+
+    			// Configure an action to acknowledge startup
+    			ui_action_t action = (ui_action_t) {
+    				.flags = UI_ACTION_VIBRATION | UI_ACTION_BUZZER,
+    				.duration = 200
+    			};
+
+    			// Request a UI feedback event for startup
+    			if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
+    				ERR("UI Action Queue overfull!");
+    			}
+
     			continue;
     		}
 
