@@ -261,7 +261,8 @@ void task_imu (void *args) {
     			// Configure an action to acknowledge startup
     			ui_action_t action = (ui_action_t) {
     				.flags = UI_ACTION_VIBRATION | UI_ACTION_BUZZER,
-    				.duration = 200
+    				.duration = 50,
+    				.periods = 2
     			};
 
     			// Request a UI feedback event for startup

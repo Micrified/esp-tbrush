@@ -44,16 +44,35 @@ void task_ui (void *args) {
 		// Wait for work to do
 		if (xQueueReceive(g_ui_action_queue, &action, poll_time)) {
 
-			// Process the job
-			if (action.flags & UI_ACTION_BUZZER) {
-				gpio_set_level(GPIO_BUZZER_PIN, 1);
-			}
-			if (action.flags & UI_ACTION_VIBRATION) {
-				// TODO: enable vibration
-			}
+			// Process periods
+			do {
 
-			// Delay
-			vTaskDelay(action.duration / portTICK_PERIOD_MS);
+				// Enable UI devices
+				if (action.flags & UI_ACTION_BUZZER) {
+					gpio_set_level(GPIO_BUZZER_PIN, 1);
+				}
+				if (action.flags & UI_ACTION_VIBRATION) {
+					// TODO: enable vibration
+				}
+
+				// Leave on
+				vTaskDelay(action.duration / portTICK_PERIOD_MS);
+
+				// If no periods, break
+				if (action.periods <= 0) {
+					break;
+				} else {
+					action.periods--;
+				}
+
+				// Shut off output for equal duration
+				gpio_set_level(GPIO_BUZZER_PIN, 0);
+				// TODO: shut off vibration
+
+				// Delay
+				vTaskDelay(action.duration / portTICK_PERIOD_MS);
+				
+			} while (1);
 		}
 
 		// Clear any actions

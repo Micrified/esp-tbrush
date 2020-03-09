@@ -73,8 +73,10 @@
 
 // Type describing a UI action 
 typedef struct {
-	uint8_t flags;              // Actions to perform
+	uint8_t  flags;              // Actions to perform
 	uint16_t duration;          // Duration of the action (ms)
+	uint8_t  periods;           // Runs high for duration, then low, then again
+	                            // for as many times as set in the period 
 } ui_action_t;
 
 
