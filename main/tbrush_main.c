@@ -26,10 +26,11 @@
 #include "driver/gpio.h"
 #include "mpu6050.h"
 #include "errors.h"
-#include "imu_task.h"
 #include "signals.h"
 #include "config.h"
+#include "imu_task.h"
 #include "ui_task.h"
+#include "ble_task.h"
 
 /*
  *******************************************************************************
@@ -125,6 +126,16 @@ void app_main (void) {
         goto reboot;
     } else {
         ESP_LOGI("Startup", "Launched " UI_TASK_NAME);
+    }
+
+    // Create the Bluetooth task pinned to core
+    if (xTaskCreatePinnedToCore(task_ble, BLE_TASK_NAME, BLE_TASK_STACK_SIZE,
+        NULL, BLE_TASK_PRIORITY, &ble_task_handle, PROTOCOL_CORE) != pdPASS) {
+        vTaskDelete(ble_task_handle);
+        ERR("Unable to create task: " BLE_TASK_NAME);
+        goto reboot;
+    } else {
+        ESP_LOGI("Startup", "Launched " BLE_TASK_NAME);
     }
 
 

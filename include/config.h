@@ -77,4 +77,8 @@
 */
 
 
+// Service name identifier for the BLE link
+#define DEVICE_BLE_SERVICE_NAME           "ESP-Tbrush"
+
+
 #endif
