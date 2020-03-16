@@ -25,6 +25,7 @@
 #include "config.h"
 #include "errors.h"
 #include "signals.h"
+#include "ble.h"
 
 
 /*
