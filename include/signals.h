@@ -39,6 +39,11 @@
 #define IMU_SIGNAL_CALIBRATE        (1 << 0)
 #define IMU_SIGNAL_MASK             IMU_SIGNAL_CALIBRATE
 
+// CTRL signal bits
+#define CTRL_SIGNAL_BLE_RX          (1 << 1)
+#define CTRL_SIGNAL_BTN_TOGGLE      (1 << 2)
+#define CTRL_SIGNAL_MASK            (CTRL_SIGNAL_BLE_RX | CTRL_SIGNAL_BTN_TOGGLE)
+
 
 /*
  *******************************************************************************
@@ -55,6 +60,10 @@ extern EventGroupHandle_t g_signal_group;
 
 // [EXTERN] Global UI action queue
 extern xQueueHandle g_ui_action_queue;
+
+
+// [EXTERN] Global TX queue
+extern xQueueHandle g_ble_tx_queue;
 
 
 #endif

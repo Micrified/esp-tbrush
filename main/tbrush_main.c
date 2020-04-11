@@ -30,7 +30,8 @@
 #include "config.h"
 #include "imu_task.h"
 #include "ui_task.h"
-#include "ble_task.h"
+#include "ctrl_task.h"
+#include "ble.h"
 
 /*
  *******************************************************************************
@@ -66,11 +67,32 @@ xQueueHandle g_ui_action_queue = NULL;
 */
 
 
+// Initializes flash-memory
+esp_err_t init_flash (void) {
+    esp_err_t err;
+
+    // Attempt initialization
+    err = nvs_flash_init();
+
+    // Attempt to handle some errors
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || 
+        err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        err = nvs_flash_erase();
+        if (err == ESP_OK) {
+            err = nvs_flash_init();
+        }
+    }
+
+    return err;
+}
+
+
+
 void app_main (void) {
     esp_err_t err = ESP_OK;
     TaskHandle_t imu_task_handle = NULL;
     TaskHandle_t ui_task_handle  = NULL;
-    TaskHandle_t ble_task_handle = NULL;
+    TaskHandle_t ctrl_task_handle = NULL;
 
     /*\  
      *   Cores (2)
@@ -92,6 +114,12 @@ void app_main (void) {
     printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
             (chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
+
+    // Flash MUST be initialized before WiFi now. So we do that first
+    if ((err = init_flash()) != ESP_OK) {
+        ESP_LOGE("MAIN", "Failed to initialize flash memory: %s", E2S(err));
+        return;
+    }
 
     // Create the signal event group
     if ((g_signal_group = xEventGroupCreate()) == NULL) {
@@ -128,14 +156,14 @@ void app_main (void) {
         ESP_LOGI("Startup", "Launched " UI_TASK_NAME);
     }
 
-    // Create the Bluetooth task pinned to core
-    if (xTaskCreatePinnedToCore(task_ble, BLE_TASK_NAME, BLE_TASK_STACK_SIZE,
-        NULL, BLE_TASK_PRIORITY, &ble_task_handle, PROTOCOL_CORE) != pdPASS) {
-        vTaskDelete(ble_task_handle);
-        ERR("Unable to create task: " BLE_TASK_NAME);
+    // Create the Control task pinned to core
+    if (xTaskCreatePinnedToCore(task_ctrl, CTRL_TASK_NAME, CTRL_TASK_STACK_SIZE,
+        NULL, CTRL_TASK_PRIORITY, &ctrl_task_handle, PROTOCOL_CORE) != pdPASS) {
+        vTaskDelete(ctrl_task_handle);
+        ERR("Unable to create task: " CTRL_TASK_NAME);
         goto reboot;
     } else {
-        ESP_LOGI("Startup", "Launched " BLE_TASK_NAME);
+        ESP_LOGI("Startup", "Launched " CTRL_TASK_NAME);
     }
 
 
