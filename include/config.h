@@ -43,11 +43,19 @@
 
 
 // GPIO for the buzzer
-#define GPIO_BUZZER_PIN                 23
+#define GPIO_BUZZER_PIN                 18
 
 
 // GPIO for the vibration motor
-#define GPIO_VIBRATION_PIN              0
+#define GPIO_VIBRATION_PIN              4
+
+
+// GPIO for the reset button
+#define GPIO_RESET_BUTTON_PIN           19
+
+
+// Interrupt priority (default)
+#define GPIO_RESET_INTR_FLAG_DEFAULT    1
 
 
 /*

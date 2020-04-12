@@ -163,23 +163,6 @@ void task_imu (void *args) {
 		goto esc;
 	}
 
-	// Install the GPIO interrupt service
-	if ((err = gpio_install_isr_service(I2C_IMU_INTR_FLAG_DEFAULT))
-	 != ESP_OK) {
-        if (err == ESP_ERR_NO_MEM) {
-            ERR("No memory available to install service!");
-        } else if (err == ESP_ERR_INVALID_STATE) {
-            ERR("Service is already installed!");
-        } else if (err == ESP_ERR_NOT_FOUND) {
-            ERR("No free interrupt found with specified flags!");
-        } else if (err == ESP_ERR_INVALID_ARG) {
-            ERR("GPIO error!");
-        } else {
-            ERR("Unknown error!");
-        }
-        goto esc;
-	}
-
 	// Attach the ISR handler for the configured pin
     if ((err = gpio_isr_handler_add(I2C_IMU_INTR_PIN, g_gpio_isr_handler, 
         (void *)I2C_IMU_INTR_PIN) // Ugly hack to pass PIN as "pointer"

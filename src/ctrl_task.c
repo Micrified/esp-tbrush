@@ -78,8 +78,8 @@ esp_err_t ble_state_event_cb(ble_state_event_t state_event) {
 static void buzzer_action (int pulses) {
 	ui_action_t action = (ui_action_t) {
 		.flags = UI_ACTION_BUZZER,
-		.duration = 50,
-		.periods = 1
+		.duration = 200,
+		.periods = pulses
 	};
 
 	if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
@@ -143,12 +143,13 @@ void task_ctrl (void *args) {
 		if ((signals & CTRL_SIGNAL_BTN_TOGGLE) != 0) {
 			if (state == CTRL_MODE_IDLE) {
 				// Switching to live
-				buzzer_action(1);
+				buzzer_action(0);
 			} else {
 				// Switching to idle
-				buzzer_action(2);
+				buzzer_action(1);
 			}
 			state = (1 - state);
+			ESP_LOGE("CTRL", "MODE = %s", (state == CTRL_MODE_IDLE ? "Idle" : "Live"));
 		}
 
 		// Send everything in the BLE TX queue

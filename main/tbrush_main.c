@@ -136,6 +136,23 @@ void app_main (void) {
         goto reboot;
     }
 
+    // Install the GPIO interrupt service
+    if ((err = gpio_install_isr_service(I2C_IMU_INTR_FLAG_DEFAULT))
+     != ESP_OK) {
+        if (err == ESP_ERR_NO_MEM) {
+            ERR("No memory available to install service!");
+        } else if (err == ESP_ERR_INVALID_STATE) {
+            ERR("Service is already installed!");
+        } else if (err == ESP_ERR_NOT_FOUND) {
+            ERR("No free interrupt found with specified flags!");
+        } else if (err == ESP_ERR_INVALID_ARG) {
+            ERR("GPIO error!");
+        } else {
+            ERR("Unknown error!");
+        }
+        goto reboot;
+    }
+
     // Create the IMU task pinned to core
     if (xTaskCreatePinnedToCore(task_imu, IMU_TASK_NAME, IMU_TASK_STACK_SIZE, NULL,
         IMU_TASK_PRIORITY, &imu_task_handle, APPLICATION_CORE) != pdPASS) {
