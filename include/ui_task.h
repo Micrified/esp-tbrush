@@ -1,6 +1,7 @@
 #if !defined(UI_TASK_H)
 #define UI_TASK_H
 
+
 /*
  *******************************************************************************
  *                        (C) Copyright 2020 IoT Seminar                       *
@@ -61,7 +62,7 @@
 
 
 // Bit-flag for the vibrating motor
-#define UI_ACTION_VIBRATION          (1 << 1)
+#define UI_ACTION_VIBRATION         (1 << 1)
 
 
 /*
@@ -73,7 +74,7 @@
 
 // Type describing a UI action 
 typedef struct {
-	uint8_t  flags;              // Actions to perform
+	uint8_t  flags;             // Actions to perform
 	uint16_t duration;          // Duration of the action (ms)
 	uint8_t  periods;           // Runs high for duration, then low, then again
 	                            // for as many times as set in the period 

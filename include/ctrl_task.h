@@ -65,6 +65,7 @@
 // The number of ticks to wait when performing a queue operation
 #define CTRL_TASK_QUEUE_MAX_TICKS         16
 
+
 /*
  *******************************************************************************
  *                              Type Definitions                               *
