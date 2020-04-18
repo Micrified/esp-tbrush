@@ -158,6 +158,37 @@ static void buzzer_action (uint8_t repeats, uint16_t duration) {
 
 /*
  *******************************************************************************
+ *                Classification/Training Function Definitions                 *
+ *******************************************************************************
+*/
+
+
+// Called after all training samples are gathered
+void on_training_data_complete (void) {
+
+    // Training data is located in these arrays (IMU_TRAINING_SAMPLE_BUF_SIZE)
+    // The size is set to 150 (50Hz ~ 3 seconds worth per zone)
+    mpu6050_data_t *data_ll = g_train_data_ll;
+    mpu6050_data_t *data_lr = g_train_data_lr;
+    mpu6050_data_t *data_tl = g_train_data_tl;
+    mpu6050_data_t *data_tr = g_train_data_tr;
+
+    // Do whatever with the data 
+}
+
+
+// Called to classify a sample (brush_zone_t is defined in msg.h)
+brush_zone_t on_data_classification (mpu6050_data_t *data_p) {
+
+    // Do classification on data provided
+
+    // Return type (max is not allowed - but is a placeholder)
+    return BRUSH_MODE_MAX;
+}
+
+
+/*
+ *******************************************************************************
  *                            Function Definitions                             *
  *******************************************************************************
 */
@@ -330,6 +361,7 @@ void task_imu (void *args) {
 
                 // Apply training function here
                 // TODO
+                on_training_data_complete();
 
                 // Signal that training is complete
                 xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_TRAIN_DONE);
@@ -376,8 +408,11 @@ void task_imu (void *args) {
                 // Reset training zone to zero
                 training_zone = 0;
 
+                // Defer to next cycle
                 continue;
             }
+
+            // Otherwise in normal mode
 
             // [DEBUG] Print normal data
             /* printf("%d, %d, %d, %d, %d, %d\n", 
@@ -392,7 +427,7 @@ void task_imu (void *args) {
             if ((sample_counter % 10) == 0) {
                 imu_proc_data_t proc_data = (imu_proc_data_t){
                     .rate = sample_counter,
-                    .zone = data.ax % BRUSH_MODE_MAX
+                    .zone = on_data_classification(&data)
                 };
                 if (xQueueSendToBack(g_processed_data_queue, &proc_data, 0)
                     != pdTRUE) {
