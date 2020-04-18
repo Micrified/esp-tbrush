@@ -32,30 +32,23 @@
 
 
 // General signal bits
-#define SIGNAL_TASK_FAULT           (1 << 8)
+#define SIGNAL_TASK_FAULT           (1 << 7)
 
 // Bluetooth signal bits
 #define SIGNAL_BLE_CONNECTED        (1 << 0)
 #define SIGNAL_BLE_DISCONNECTED     (1 << 1)
-#define SIGNAL_BLE_MASK             (SIGNAL_BLE_CONNECTED | 
-                                     SIGNAL_BLE_DISCONNECTED)
+#define SIGNAL_BLE_MASK             (SIGNAL_BLE_CONNECTED | SIGNAL_BLE_DISCONNECTED)
 
 // IMU signal bits
 #define IMU_SIGNAL_RESET            (1 << 2)
 #define IMU_SIGNAL_TRAIN_START      (1 << 3)
-#define IMU_SIGNAL_TRAIN_TICK       (1 << 4)
-#define IMU_SIGNAL_MASK           	(IMU_SIGNAL_RESET | 
-                                     IMU_SIGNAL_TRAIN_START | 
-                                     IMU_SIGNAL_TRAIN_TICK)
+#define IMU_SIGNAL_MASK           	(IMU_SIGNAL_RESET | IMU_SIGNAL_TRAIN_START)
 
 // CTRL signal bits
-#define CTRL_SIGNAL_BTN_TOGGLE      (1 << 5)
-#define CTRL_SIGNAL_TRAIN_DONE      (1 << 6)
-#define CTRL_SIGNAL_BRUSH_DONE      (1 << 7)
-#define CTRL_SIGNAL_MASK            (CTRL_SIGNAL_BTN_TOGGLE | 
-                                     CTRL_SIGNAL_TRAIN_DONE | 
-                                     CTRL_SIGNAL_BRUSH_DONE | 
-                                     SIGNAL_BLE_MASK)
+#define CTRL_SIGNAL_BTN_TOGGLE      (1 << 4)
+#define CTRL_SIGNAL_TRAIN_DONE      (1 << 5)
+#define CTRL_SIGNAL_BRUSH_DONE      (1 << 6)
+#define CTRL_SIGNAL_MASK            (CTRL_SIGNAL_BTN_TOGGLE | CTRL_SIGNAL_TRAIN_DONE | CTRL_SIGNAL_BRUSH_DONE | SIGNAL_BLE_MASK)
 
 
 /*

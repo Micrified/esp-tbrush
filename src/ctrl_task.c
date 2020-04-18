@@ -87,11 +87,11 @@ esp_err_t ble_state_event_cb(ble_state_event_t state_event) {
 
 
 // Creates and enqueues an action sounding the buzzer
-static void buzzer_action (uint8_t pulses, uint16_t duration) {
+static void buzzer_action (uint8_t repeats, uint16_t duration) {
 	ui_action_t action = (ui_action_t) {
 		.flags = UI_ACTION_BUZZER,
 		.duration = duration,
-		.periods = pulses
+		.periods = repeats
 	};
 
 	if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
@@ -256,7 +256,7 @@ void services_start () {
 
 void task_ctrl (void *args) {
 	esp_err_t err = ESP_OK;                 // Error tracking
-	ctrl_mode_t state = CTRL_MODE_IDLE;     // Current control mode
+	ctrl_mode_t mode = CTRL_MODE_IDLE;     // Current control mode
 	uint32_t signals;                       // Signal group flags
 	const TickType_t ctrl_block_time = 32;  // Poll time before control loop
 	int isConnected = 0;                    // Connected flag
@@ -315,23 +315,23 @@ void task_ctrl (void *args) {
 			ESP_LOGI(CTRL_TASK_NAME, "Whhoo whee sent report!!");
 
 			// Set mode back to idle
-			state = CTRL_MODE_IDLE;
+			mode = CTRL_MODE_IDLE;
 		}
 
 		// Check if training is complete
 		if ((signals & CTRL_SIGNAL_TRAIN_DONE) != 0) {
 			services_start();
-			state = CTRL_MODE_BRUSH;
+			mode = CTRL_MODE_BRUSH;
 		}
 
 		// Check if there was a button toggle
 		if ((signals & CTRL_SIGNAL_BTN_TOGGLE) != 0) {
-			if (state > CTRL_MODE_IDLE) {
+			if (mode > CTRL_MODE_IDLE) {
 				services_reset();
-				state = CTRL_MODE_IDLE;
+				mode = CTRL_MODE_IDLE;
 			} else {
 				services_stage();
-				state = CTRL_MODE_TRAIN;
+				mode = CTRL_MODE_TRAIN;
 			}
 		}
 

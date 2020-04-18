@@ -22,33 +22,26 @@ mpu6050_data_t g_calibration_data = (mpu6050_data_t) {
 TimerHandle_t g_training_mode_timer = NULL;
 
 
+// The training buffers
+static mpu6050_data_t g_train_data_ll[IMU_TRAINING_SAMPLE_BUF_SIZE];
+static mpu6050_data_t g_train_data_lr[IMU_TRAINING_SAMPLE_BUF_SIZE]; 
+static mpu6050_data_t g_train_data_tl[IMU_TRAINING_SAMPLE_BUF_SIZE];
+static mpu6050_data_t g_train_data_tr[IMU_TRAINING_SAMPLE_BUF_SIZE];
+
+// Training buffer pointer - buffer
+static mpu6050_data_t *g_train_data[4] = {
+    g_train_data_ll,
+    g_train_data_lr,
+    g_train_data_tl,
+    g_train_data_tr
+};
+
+
 /*
  *******************************************************************************
  *                        Internal Function Definitions                        *
  *******************************************************************************
 */
-
-
-// Self-incrementing timer callback
-static void timer_callback (TimerHandle_t timer) {
-    const uint32_t max_callback_count = 4;
-    uint32_t callback_count;
-
-    // Obtain number of times timer has expired
-    callback_count = (uint32_t)pvTimerGetTimerID(timer);
-
-    // Check if timer has expired; if so, end callbacks + signal end
-    if (++callback_count > max_callback_count) {
-        xTimerStop(timer, 0);
-
-        // Signal that training is complete
-        xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_TRAIN_DONE);
-    } else {
-
-        // Signal a training tick
-        xEventGroupSetBits(g_signal_group, IMU_SIGNAL_TRAIN_TICK);
-    }
-}
 
 
 // GPIO interrupt handler
@@ -149,6 +142,18 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
 }
 
 
+// Creates and enqueues an action sounding the buzzer
+static void buzzer_action (uint8_t repeats, uint16_t duration) {
+    ui_action_t action = (ui_action_t) {
+        .flags = UI_ACTION_BUZZER,
+        .duration = duration,
+        .periods = repeats
+    };
+
+    if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
+        ERR("Could not send to action queue!");
+    }
+}
 
 
 /*
@@ -163,18 +168,16 @@ void task_imu (void *args) {
 	mpu6050_data_t data;                       // Instantaneous IMU data
 	uint32_t signals, pin_id;                  // Signal bits, interrupt pin
 	int16_t calibration_ticks = 0;             // Number of elapsed calib ticks
-	imu_mode_t mode = MODE_CALIBRATION;        // Current IMU mode
+	imu_mode_t mode = IMU_MODE_CALIBRATION;    // Current IMU mode
 	uint16_t len;                              // Holds IMU FIFO size
 	mpu6050_i2c_cfg_t *i2c_cfg_p = NULL;       // I2C configuration
 	uint64_t pin_bit_mask =                    // Interrupt pin mask
     ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
 	const TickType_t event_block_time = 1;     // Waiting time for events
-    uint8_t counter = 0;                       // Calibration counter
+    uint16_t sample_counter = 0;               // Counter for calib/train
+    uint8_t training_zone = 0;                 // Zone currently being trained
     uint8_t is_pending_training = 0;           // Set to 1 if training pending
-    uint8_t is_training_tick = 0;              // Set to 1 if training tick
-
-    // Constant: 3 seconds
-    const TickType_t timer_period = pdMS_TO_TICKS(3 * 1000);
+    uint8_t is_pending_reset = 0;              // Set to 1 if reset pending
 
 	// Initialize the event-queue
 	if ((g_gpio_event_queue = xQueueCreate(IMU_INTERRUPT_QUEUE_SIZE,
@@ -231,12 +234,10 @@ void task_imu (void *args) {
             is_pending_training = 1;
         }
 
-
-        // Check if there was a training tick
-        if ((signals & IMU_SIGNAL_TRAIN_TICK) != 0) {
-            is_training_tick = 1;
+        // check if there was a reset mode request
+        if ((signals & IMU_SIGNAL_RESET) != 0) {
+            is_pending_reset = 1;
         }
-
 
     	// Read a new sample from the queue
     	if (xQueueReceive(g_gpio_event_queue, &pin_id, 0x0)) {
@@ -246,11 +247,13 @@ void task_imu (void *args) {
     			ERR("FIFO length fetch error!");
     			break;
     		}
+
+            // Defer check to next cycle if insufficient data
     		if (len < FIFO_BURST_LEN) {
     			continue;
     		}
 
-    		// Fetch data from FIFO
+    		// Otherwise extract data from the IMU
     		if (mpu6050_receive_fifo(i2c_cfg_p, &data) != MPU6050_ERR_OK) {
     			ERR("FIFO data fetch error!");
     			break;
@@ -258,21 +261,21 @@ void task_imu (void *args) {
 
     	} else {
 
-            // No sample was ready - loop back and try again
+            // No sample was ready - defer check to next cycle
             continue;
         }
 
-        // Increment sample counter
-        counter++;
+        // A sample certainly is ready - increment general counter
+        sample_counter++;
 
         // If in calibration mode
-        if (mode == MODE_CALIBRATION) {
+        if (mode == IMU_MODE_CALIBRATION) {
+
+            // Increment calibration ticks
+            calibration_ticks++;
 
             // If calibration is complete
-            if (calibration_ticks > IMU_CALIBRATION_SAMPLE_SIZE) {
-
-                // Change mode
-                mode = MODE_IDLE;
+            if (calibration_ticks >= IMU_CALIBRATION_SAMPLE_SIZE) {
 
                 // Output calibration data
                 printf("ax: %d, ay: %d, az: %d, gx: %d, gy: %d, gz: %d\n", 
@@ -283,17 +286,11 @@ void task_imu (void *args) {
                     g_calibration_data.gy,
                     g_calibration_data.gz);
 
-                // Configure an action to acknowledge startup
-                ui_action_t action = (ui_action_t) {
-                    .flags = UI_ACTION_VIBRATION | UI_ACTION_BUZZER,
-                    .duration = 50,
-                    .periods = 2
-                };
+                // Sound a buzzer to mark end of calibration
+                buzzer_action(2, 50);
 
-                // Request a UI feedback event for startup
-                if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
-                    ERR("UI Action Queue overfull!");
-                }
+                // Change mode back to idle
+                mode = IMU_MODE_IDLE;
 
             } else {
 
@@ -307,36 +304,82 @@ void task_imu (void *args) {
                 g_calibration_data.gz = g_calibration_data.gz + ((data.gz - g_calibration_data.gz) / calibration_ticks);
             }
 
-            // Increment calibration ticks
-            calibration_ticks++;
 
-            // If in calibration mode, no other content is considered
+            // Defer to next cycle so that we don't reuse current sample across modes
             continue;
         }
 
         // If in training mode
-        if (mode == MODE_TRAIN) {
+        if (mode == IMU_MODE_TRAIN) {
 
-            // If there was a training tick
+            // Check if a reset occurred - this can only affect training mode
+            if (is_pending_reset) {
 
-            /* Insight: We know the frequency at which we collect data
-             * so why use a complex timer to do this when we can just
-             * estimate 50Hz collection rate, and collect 150 samples
-             * per zone, complete with a beep afterwards?!?
-             * Therefore we have equal space between samples
-             */
-        }
+                // Unset the flag
+                is_pending_reset = 0;
 
-        // If in idle mode
-        if (mode == MODE_IDLE) {
+                // Change modes
+                mode = IMU_MODE_IDLE;
 
-            // Transition to training mode on request + unset
-            if (is_pending_training) {
-                mode = MODE_TRAIN;
-                is_pending_training = 0;
+                // Defer to next cycle (variables reset from idle -> train)
                 continue;
             }
 
+            // If all zones are trained, go back to idle and signal
+            if (training_zone >= 4) {
+
+                // Apply training function here
+                // TODO
+
+                // Signal that training is complete
+                xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_TRAIN_DONE);
+
+                // Reset the mode
+                mode = IMU_MODE_IDLE;
+
+            } else {
+
+                // If filled buffer, switch training zone and reset
+                if (sample_counter > IMU_TRAINING_SAMPLE_BUF_SIZE) {
+                    training_zone++;
+                    sample_counter = 0;
+
+                    // Sound buzzer
+                    buzzer_action(1, 50);
+
+                } else {
+
+                    // Store data in training set
+                    g_train_data[training_zone][sample_counter - 1] = data;
+                }
+            }
+
+            // Defer to next cycle to not resuse current sample across modes
+            continue;
+        }
+
+        // If in idle mode
+        if (mode == IMU_MODE_IDLE) {
+
+            // Transition to training mode if requested
+            if (is_pending_training) {
+
+                // Update the task mode
+                mode = IMU_MODE_TRAIN;
+
+                // Unset pending flag (now being handled)
+                is_pending_training = 0;
+
+                // Reset counter
+                sample_counter = 0;
+
+                // Reset training zone to zero
+                training_zone = 0;
+
+                continue;
+            }
+
+            // [DEBUG] Print normal data
             /* printf("%d, %d, %d, %d, %d, %d\n", 
                 data.ax - g_calibration_data.ax,
                 data.ay - g_calibration_data.ay,
@@ -346,9 +389,9 @@ void task_imu (void *args) {
                 data.gz - g_calibration_data.gz); */
 
             // Push data to the processed queue at a rate of 5Hz
-            if ((counter % 10) == 0) {
+            if ((sample_counter % 10) == 0) {
                 imu_proc_data_t proc_data = (imu_proc_data_t){
-                    .rate = counter,
+                    .rate = sample_counter,
                     .zone = data.ax % BRUSH_MODE_MAX
                 };
                 if (xQueueSendToBack(g_processed_data_queue, &proc_data, 0)

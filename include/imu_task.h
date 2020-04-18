@@ -69,11 +69,23 @@
 #define IMU_PROCESSED_DATA_QUEUE_SIZE		64
 
 
+// Number of samples for training a section
+#define IMU_TRAINING_SAMPLE_BUF_SIZE        150
+
+
 /*
  *******************************************************************************
  *                              Type Definitions                               *
  *******************************************************************************
 */
+
+
+// Enumeration of IMU modes
+typedef enum {
+	IMU_MODE_IDLE,
+	IMU_MODE_CALIBRATION,
+	IMU_MODE_TRAIN
+} imu_mode_t;
 
 
 // Type describing processed data
