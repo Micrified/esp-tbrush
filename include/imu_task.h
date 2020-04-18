@@ -28,6 +28,7 @@
 #include "signals.h"
 #include "ui_task.h"
 
+#include "msg.h"
 
 /*
  *******************************************************************************
@@ -62,6 +63,24 @@
 
 // Mode 1: Calibration
 #define IMU_TASK_MODE_CALIBRATION          (1 << 0)
+
+
+// Number of elements in the processed data queue
+#define IMU_PROCESSED_DATA_QUEUE_SIZE		64
+
+
+/*
+ *******************************************************************************
+ *                              Type Definitions                               *
+ *******************************************************************************
+*/
+
+
+// Type describing processed data
+typedef struct {
+	uint8_t rate;       // Brushing rate (in Hz)
+	brush_zone_t zone;  // Brushing zone
+} imu_proc_data_t;
 
 
 /*

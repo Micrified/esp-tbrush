@@ -30,6 +30,14 @@
 */
 
 
+// Enumeration of IMU modes
+typedef struct {
+	MODE_IDLE,
+	MODE_CALIBRATION,
+	MODE_TRAIN
+} imu_mode_t;
+
+
 // Structure describing interesting IMU data
 typedef struct {
 	int16_t ax, ay, az;

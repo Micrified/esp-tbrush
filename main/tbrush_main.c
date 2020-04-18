@@ -60,6 +60,10 @@ EventGroupHandle_t g_signal_group;
 xQueueHandle g_ui_action_queue = NULL;
 
 
+// Queue holding processed data (from the IMU) to be processed by control task
+xQueueHandle g_processed_data_queue = NULL;
+
+
 /*
  *******************************************************************************
  *                            Function Definitions                             *
@@ -133,6 +137,13 @@ void app_main (void) {
     if ((g_ui_action_queue = xQueueCreate(UI_ACTION_QUEUE_SIZE,
         sizeof(ui_action_t))) == NULL) {
         ERR("Insufficient memory to create action queue!");
+        goto reboot;
+    }
+
+    // Initialize the processed data queue
+    if ((g_processed_data_queue = xQueueCreate(IMU_PROCESSED_DATA_QUEUE_SIZE,
+        sizeof(imu_proc_data_t))) == NULL) {
+        ERR("Insufficient memory to create processed data queue!");
         goto reboot;
     }
 

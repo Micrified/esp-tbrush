@@ -18,11 +18,37 @@ mpu6050_data_t g_calibration_data = (mpu6050_data_t) {
 };
 
 
+// Handle for the training mode timer
+TimerHandle_t g_training_mode_timer = NULL;
+
+
 /*
  *******************************************************************************
  *                        Internal Function Definitions                        *
  *******************************************************************************
 */
+
+
+// Self-incrementing timer callback
+static void timer_callback (TimerHandle_t timer) {
+    const uint32_t max_callback_count = 4;
+    uint32_t callback_count;
+
+    // Obtain number of times timer has expired
+    callback_count = (uint32_t)pvTimerGetTimerID(timer);
+
+    // Check if timer has expired; if so, end callbacks + signal end
+    if (++callback_count > max_callback_count) {
+        xTimerStop(timer, 0);
+
+        // Signal that training is complete
+        xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_TRAIN_DONE);
+    } else {
+
+        // Signal a training tick
+        xEventGroupSetBits(g_signal_group, IMU_SIGNAL_TRAIN_TICK);
+    }
+}
 
 
 // GPIO interrupt handler
@@ -123,6 +149,8 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
 }
 
 
+
+
 /*
  *******************************************************************************
  *                            Function Definitions                             *
@@ -131,15 +159,22 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
 
 
 void task_imu (void *args) {
-	esp_err_t err = ESP_OK;
-	mpu6050_data_t data;
-	uint32_t signals, pin_id;
-	int16_t calibration_ticks = 0;
-	uint8_t mode = 1;
-	uint16_t len;
-	mpu6050_i2c_cfg_t *i2c_cfg_p = NULL;
-	uint64_t pin_bit_mask = ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
-	const TickType_t event_block_time = 1;
+	esp_err_t err = ESP_OK;                    // Error tracking
+	mpu6050_data_t data;                       // Instantaneous IMU data
+	uint32_t signals, pin_id;                  // Signal bits, interrupt pin
+	int16_t calibration_ticks = 0;             // Number of elapsed calib ticks
+	imu_mode_t mode = MODE_CALIBRATION;        // Current IMU mode
+	uint16_t len;                              // Holds IMU FIFO size
+	mpu6050_i2c_cfg_t *i2c_cfg_p = NULL;       // I2C configuration
+	uint64_t pin_bit_mask =                    // Interrupt pin mask
+    ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
+	const TickType_t event_block_time = 1;     // Waiting time for events
+    uint8_t counter = 0;                       // Calibration counter
+    uint8_t is_pending_training = 0;           // Set to 1 if training pending
+    uint8_t is_training_tick = 0;              // Set to 1 if training tick
+
+    // Constant: 3 seconds
+    const TickType_t timer_period = pdMS_TO_TICKS(3 * 1000);
 
 	// Initialize the event-queue
 	if ((g_gpio_event_queue = xQueueCreate(IMU_INTERRUPT_QUEUE_SIZE,
@@ -191,13 +226,19 @@ void task_imu (void *args) {
     		pdTRUE, pdFALSE, event_block_time);
 
 
-    	// Check if calibration is necessary
-    	if (signals & IMU_SIGNAL_CALIBRATE) {
-    		mode |= IMU_TASK_MODE_CALIBRATION;
-    	}
+        // Check if there was a training mode request
+        if ((signals & IMU_SIGNAL_TRAIN_START) != 0) {
+            is_pending_training = 1;
+        }
 
 
-    	// Process a sample
+        // Check if there was a training tick
+        if ((signals & IMU_SIGNAL_TRAIN_TICK) != 0) {
+            is_training_tick = 1;
+        }
+
+
+    	// Read a new sample from the queue
     	if (xQueueReceive(g_gpio_event_queue, &pin_id, 0x0)) {
 
     		// Check the FIFO length
@@ -209,66 +250,114 @@ void task_imu (void *args) {
     			continue;
     		}
 
-
     		// Fetch data from FIFO
     		if (mpu6050_receive_fifo(i2c_cfg_p, &data) != MPU6050_ERR_OK) {
     			ERR("FIFO data fetch error!");
     			break;
     		}
 
-    		// If not in calibration mode, just print the data for now
-    		if ((mode & IMU_TASK_MODE_CALIBRATION) == 0) {
-    			printf("%d, %d, %d, %d, %d, %d\n", 
-    				data.ax - g_calibration_data.ax,
-    				data.ay - g_calibration_data.ay,
-    				data.az - g_calibration_data.az,
-    				data.gx - g_calibration_data.gx,
-    				data.gy - g_calibration_data.gy,
-    				data.gz - g_calibration_data.gz);
-    			continue;
-    		}
+    	} else {
 
-    		// If calibration is complete, unset flag and counter
-    		if (calibration_ticks >= IMU_CALIBRATION_SAMPLE_SIZE) {
-    			mode &= ~(IMU_TASK_MODE_CALIBRATION);
-    			calibration_ticks = 0;
-    			ESP_LOGI(IMU_TASK_NAME, "Calibration Complete");
-    			printf("ax: %d, ay: %d, az: %d, gx: %d, gy: %d, gz: %d\n", 
-    				g_calibration_data.ax,
-    				g_calibration_data.ay,
-    				g_calibration_data.az,
-    				g_calibration_data.gx,
-    				g_calibration_data.gy,
-    				g_calibration_data.gz);
+            // No sample was ready - loop back and try again
+            continue;
+        }
 
-    			// Configure an action to acknowledge startup
-    			ui_action_t action = (ui_action_t) {
-    				.flags = UI_ACTION_VIBRATION | UI_ACTION_BUZZER,
-    				.duration = 50,
-    				.periods = 2
-    			};
+        // Increment sample counter
+        counter++;
 
-    			// Request a UI feedback event for startup
-    			if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
-    				ERR("UI Action Queue overfull!");
-    			}
+        // If in calibration mode
+        if (mode == MODE_CALIBRATION) {
 
-    			continue;
-    		}
+            // If calibration is complete
+            if (calibration_ticks > IMU_CALIBRATION_SAMPLE_SIZE) {
 
-    		// Increment calibration ticks
-    		calibration_ticks++;
+                // Change mode
+                mode = MODE_IDLE;
 
-    		// Otherwise continue calibration: AVG(n) = [(n-1)*Avg(n-1) + X(n)]/n
-    		g_calibration_data.ax = g_calibration_data.ax + ((data.ax - g_calibration_data.ax) / calibration_ticks);
-    		g_calibration_data.ay = g_calibration_data.ay + ((data.ay - g_calibration_data.ay) / calibration_ticks);
-    		g_calibration_data.az = g_calibration_data.az + ((data.az - g_calibration_data.az) / calibration_ticks);
+                // Output calibration data
+                printf("ax: %d, ay: %d, az: %d, gx: %d, gy: %d, gz: %d\n", 
+                    g_calibration_data.ax,
+                    g_calibration_data.ay,
+                    g_calibration_data.az,
+                    g_calibration_data.gx,
+                    g_calibration_data.gy,
+                    g_calibration_data.gz);
 
-    		g_calibration_data.gx = g_calibration_data.gx + ((data.gx - g_calibration_data.gx) / calibration_ticks);
-    		g_calibration_data.gy = g_calibration_data.gy + ((data.gy - g_calibration_data.gy) / calibration_ticks);
-    		g_calibration_data.gz = g_calibration_data.gz + ((data.gz - g_calibration_data.gz) / calibration_ticks);
+                // Configure an action to acknowledge startup
+                ui_action_t action = (ui_action_t) {
+                    .flags = UI_ACTION_VIBRATION | UI_ACTION_BUZZER,
+                    .duration = 50,
+                    .periods = 2
+                };
 
-    	}
+                // Request a UI feedback event for startup
+                if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
+                    ERR("UI Action Queue overfull!");
+                }
+
+            } else {
+
+                // Otherwise update calibration values
+                g_calibration_data.ax = g_calibration_data.ax + ((data.ax - g_calibration_data.ax) / calibration_ticks);
+                g_calibration_data.ay = g_calibration_data.ay + ((data.ay - g_calibration_data.ay) / calibration_ticks);
+                g_calibration_data.az = g_calibration_data.az + ((data.az - g_calibration_data.az) / calibration_ticks);
+
+                g_calibration_data.gx = g_calibration_data.gx + ((data.gx - g_calibration_data.gx) / calibration_ticks);
+                g_calibration_data.gy = g_calibration_data.gy + ((data.gy - g_calibration_data.gy) / calibration_ticks);
+                g_calibration_data.gz = g_calibration_data.gz + ((data.gz - g_calibration_data.gz) / calibration_ticks);
+            }
+
+            // Increment calibration ticks
+            calibration_ticks++;
+
+            // If in calibration mode, no other content is considered
+            continue;
+        }
+
+        // If in training mode
+        if (mode == MODE_TRAIN) {
+
+            // If there was a training tick
+
+            /* Insight: We know the frequency at which we collect data
+             * so why use a complex timer to do this when we can just
+             * estimate 50Hz collection rate, and collect 150 samples
+             * per zone, complete with a beep afterwards?!?
+             * Therefore we have equal space between samples
+             */
+        }
+
+        // If in idle mode
+        if (mode == MODE_IDLE) {
+
+            // Transition to training mode on request + unset
+            if (is_pending_training) {
+                mode = MODE_TRAIN;
+                is_pending_training = 0;
+                continue;
+            }
+
+            /* printf("%d, %d, %d, %d, %d, %d\n", 
+                data.ax - g_calibration_data.ax,
+                data.ay - g_calibration_data.ay,
+                data.az - g_calibration_data.az,
+                data.gx - g_calibration_data.gx,
+                data.gy - g_calibration_data.gy,
+                data.gz - g_calibration_data.gz); */
+
+            // Push data to the processed queue at a rate of 5Hz
+            if ((counter % 10) == 0) {
+                imu_proc_data_t proc_data = (imu_proc_data_t){
+                    .rate = counter,
+                    .zone = data.ax % BRUSH_MODE_MAX
+                };
+                if (xQueueSendToBack(g_processed_data_queue, &proc_data, 0)
+                    != pdTRUE) {
+                    ERR("Processed Data Queue overfull!");
+                }
+            }
+
+        }
 
 
     } while (1);

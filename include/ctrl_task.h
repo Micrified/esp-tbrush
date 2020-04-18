@@ -27,7 +27,9 @@
 #include "errors.h"
 #include "signals.h"
 #include "ble.h"
+#include "msg.h"
 
+#include "imu_task.h"
 #include "ui_task.h"
 
 
@@ -83,7 +85,8 @@ typedef struct {
 // State machine enumeration for the modes
 typedef enum {
 	CTRL_MODE_IDLE = 0,
-	CTRL_MODE_LIVE
+	CTRL_MODE_TRAIN,
+	CTRL_MODE_BRUSH
 } ctrl_mode_t;
 
 

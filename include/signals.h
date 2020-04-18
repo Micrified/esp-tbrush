@@ -32,17 +32,30 @@
 
 
 // General signal bits
-#define SIGNAL_TASK_FAULT           (1 << 7)
+#define SIGNAL_TASK_FAULT           (1 << 8)
 
+// Bluetooth signal bits
+#define SIGNAL_BLE_CONNECTED        (1 << 0)
+#define SIGNAL_BLE_DISCONNECTED     (1 << 1)
+#define SIGNAL_BLE_MASK             (SIGNAL_BLE_CONNECTED | 
+                                     SIGNAL_BLE_DISCONNECTED)
 
 // IMU signal bits
-#define IMU_SIGNAL_CALIBRATE        (1 << 0)
-#define IMU_SIGNAL_MASK             IMU_SIGNAL_CALIBRATE
+#define IMU_SIGNAL_RESET            (1 << 2)
+#define IMU_SIGNAL_TRAIN_START      (1 << 3)
+#define IMU_SIGNAL_TRAIN_TICK       (1 << 4)
+#define IMU_SIGNAL_MASK           	(IMU_SIGNAL_RESET | 
+                                     IMU_SIGNAL_TRAIN_START | 
+                                     IMU_SIGNAL_TRAIN_TICK)
 
 // CTRL signal bits
-#define CTRL_SIGNAL_BLE_RX          (1 << 1)
-#define CTRL_SIGNAL_BTN_TOGGLE      (1 << 2)
-#define CTRL_SIGNAL_MASK            (CTRL_SIGNAL_BLE_RX | CTRL_SIGNAL_BTN_TOGGLE)
+#define CTRL_SIGNAL_BTN_TOGGLE      (1 << 5)
+#define CTRL_SIGNAL_TRAIN_DONE      (1 << 6)
+#define CTRL_SIGNAL_BRUSH_DONE      (1 << 7)
+#define CTRL_SIGNAL_MASK            (CTRL_SIGNAL_BTN_TOGGLE | 
+                                     CTRL_SIGNAL_TRAIN_DONE | 
+                                     CTRL_SIGNAL_BRUSH_DONE | 
+                                     SIGNAL_BLE_MASK)
 
 
 /*
@@ -62,8 +75,8 @@ extern EventGroupHandle_t g_signal_group;
 extern xQueueHandle g_ui_action_queue;
 
 
-// [EXTERN] Global TX queue
-extern xQueueHandle g_ble_tx_queue;
+// [EXTERN] Global processed data queue
+extern xQueueHandle g_processed_data_queue;
 
 
 #endif
