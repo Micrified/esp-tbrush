@@ -216,11 +216,6 @@ void services_reset () {
 		ESP_LOGE("CTRL", "Couldn't stop the timer!");
 	}
 
-	// Reset the timer
-	if (xTimerReset(g_active_mode_timer, 0x0) != pdPASS) {
-		ESP_LOGE("CTRL", "Couldn't reset the timer!");
-	}
-
 	// Ring the buzzer
 	buzzer_action(0, 750);
 }
@@ -308,6 +303,9 @@ void task_ctrl (void *args) {
 		// Check if brushing is complete
 		if ((signals & CTRL_SIGNAL_BRUSH_DONE) != 0) {
 
+			ESP_LOGE(CTRL_TASK_NAME, "Brushing finished!");
+
+
 			// Sound buzzer to mark end
 			buzzer_action(0, 750);
 
@@ -320,6 +318,8 @@ void task_ctrl (void *args) {
 
 		// Check if training is complete
 		if ((signals & CTRL_SIGNAL_TRAIN_DONE) != 0) {
+			ESP_LOGE(CTRL_TASK_NAME, "Training signalled finished!");
+
 			services_start();
 			mode = CTRL_MODE_BRUSH;
 		}
@@ -327,6 +327,7 @@ void task_ctrl (void *args) {
 		// Check if there was a button toggle
 		if ((signals & CTRL_SIGNAL_BTN_TOGGLE) != 0) {
 			if (mode > CTRL_MODE_IDLE) {
+				ESP_LOGE(CTRL_TASK_NAME, "Resetting");
 				services_reset();
 				mode = CTRL_MODE_IDLE;
 			} else {
@@ -347,19 +348,6 @@ void task_ctrl (void *args) {
 		process_tx_queue(isConnected);
 
 	} while (1);
-
-	// TODO (Description)
-	// I've implemented the logic in this task.
-	// You call train first from IDLE on button press, which talks to IMU_TASK
-	// IMU_TASK should run a timer which lets it do the training stage. If not
-	// aborted, then it should finish okay and signal training is done
-	// If training is done, then we move to the brushing stage where a local
-	// timer is launched. When that timer is done it signals and this task
-	// drops back down into idle mode. It also sends a report after. It can
-	// only send a report when idle on request (when it gets requests) as
-	// a side note. 
-
-	// We need to 
 
 esc:
 

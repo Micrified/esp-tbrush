@@ -307,6 +307,7 @@ void task_imu (void *args) {
 
             // If calibration is complete
             if (calibration_ticks >= IMU_CALIBRATION_SAMPLE_SIZE) {
+                ESP_LOGE(IMU_TASK_NAME, "Calibration finished!");
 
                 // Output calibration data
                 printf("ax: %d, ay: %d, az: %d, gx: %d, gy: %d, gz: %d\n", 
@@ -345,6 +346,7 @@ void task_imu (void *args) {
 
             // Check if a reset occurred - this can only affect training mode
             if (is_pending_reset) {
+                ESP_LOGE(IMU_TASK_NAME, "Training interrupt!");
 
                 // Unset the flag
                 is_pending_reset = 0;
@@ -369,15 +371,20 @@ void task_imu (void *args) {
                 // Reset the mode
                 mode = IMU_MODE_IDLE;
 
+                ESP_LOGE(IMU_TASK_NAME, "Training finished!");
+
             } else {
+
+                // If sample counter is zero ring (at first)
+                if (sample_counter == 1) {
+                    // Sound buzzer
+                    buzzer_action(1, 50);                    
+                }
 
                 // If filled buffer, switch training zone and reset
                 if (sample_counter > IMU_TRAINING_SAMPLE_BUF_SIZE) {
                     training_zone++;
                     sample_counter = 0;
-
-                    // Sound buzzer
-                    buzzer_action(1, 50);
 
                 } else {
 
@@ -395,6 +402,7 @@ void task_imu (void *args) {
 
             // Transition to training mode if requested
             if (is_pending_training) {
+                ESP_LOGE(IMU_TASK_NAME, "Training request!");
 
                 // Update the task mode
                 mode = IMU_MODE_TRAIN;
