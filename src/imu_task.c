@@ -101,8 +101,8 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
     	return err;
     }
 
-    // Set the sampling rate to ~50Hz
-    flags = 19;
+    // Set the sampling rate to ~40Hz
+    flags = 24;
     if ((err = mpu6050_set_sample_rate_divider(&i2c_cfg, flags)) 
     	!= MPU6050_ERR_OK) {
     	return err;
@@ -206,7 +206,7 @@ void task_imu (void *args) {
     ((uint64_t)1) << (uint64_t)(I2C_IMU_INTR_PIN);
 	const TickType_t event_block_time = 1;     // Waiting time for events
     uint16_t sample_counter = 0;               // Counter for calib/train
-    uint8_t training_zone = 0;                 // Zone currently being trained
+    uint8_t active_zone = 0;                   // Current brush/trained zone
     uint8_t is_pending_training = 0;           // Set to 1 if training pending
     uint8_t is_pending_reset = 0;              // Set to 1 if reset pending
 
@@ -258,7 +258,6 @@ void task_imu (void *args) {
     	// Check for signals within the given block time
     	signals = xEventGroupWaitBits(g_signal_group, IMU_SIGNAL_MASK, 
     		pdTRUE, pdFALSE, event_block_time);
-
 
         // Check if there was a training mode request
         if ((signals & IMU_SIGNAL_TRAIN_START) != 0) {
@@ -341,25 +340,81 @@ void task_imu (void *args) {
             continue;
         }
 
+
+        // Check if a reset is pending
+        if (is_pending_reset) {
+
+            // Unset the reset flag
+            is_pending_reset = 0;
+
+            // Ring the buzzer
+            buzzer_action(0, 750);
+
+            // Log the current aborted mode
+            ESP_LOGW(IMU_TASK_NAME, 
+                "Reset from mode %d to %d\n", mode, IMU_MODE_IDLE);
+
+            // Reset the mode
+            mode = IMU_MODE_IDLE;
+
+            // Defer to next cycle
+            continue;
+        }
+
+
+        // If in brushing mode
+        if (mode == IMU_MODE_BRUSH) {
+
+            // Check if brushing is done
+            if (active_zone >= 4) {
+
+                // Signal that brushing is complete
+                xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_BRUSH_DONE);
+
+                // Sound the buzzer
+                buzzer_action(0, 750);
+
+                // Change the mode back to idle
+                mode = IMU_MODE_IDLE;
+
+                // Reset sample counter and active zone
+                sample_counter = active_zone = 0;
+
+                ESP_LOGW(IMU_TASK_NAME, "Brushing finished!");
+            } else {
+
+                // [DEBUG] Otherwise print the current sample
+                printf("%d, %d, %d, %d, %d, %d\n", 
+                data.ax - g_calibration_data.ax,
+                data.ay - g_calibration_data.ay,
+                data.az - g_calibration_data.az,
+                data.gx - g_calibration_data.gx,
+                data.gy - g_calibration_data.gy,
+                data.gz - g_calibration_data.gz);
+
+                // If sample counter is zero ring (at first)
+                if (sample_counter == 1) {
+                    // Sound buzzer
+                    buzzer_action(2, 50);                    
+                }
+
+                // If at (or exceed) limit, switch zone and reset
+                if (sample_counter >= IMU_BRUSHING_SAMPLE_SIZE) {
+                    active_zone++;
+                    printf("--- Zone %u ---\n", active_zone);
+                    sample_counter = 0;
+                }
+            }
+
+            // Defer to next cycle so as to not reuse sample
+            continue;
+        }
+
         // If in training mode
         if (mode == IMU_MODE_TRAIN) {
 
-            // Check if a reset occurred - this can only affect training mode
-            if (is_pending_reset) {
-                ESP_LOGE(IMU_TASK_NAME, "Training interrupt!");
-
-                // Unset the flag
-                is_pending_reset = 0;
-
-                // Change modes
-                mode = IMU_MODE_IDLE;
-
-                // Defer to next cycle (variables reset from idle -> train)
-                continue;
-            }
-
             // If all zones are trained, go back to idle and signal
-            if (training_zone >= 4) {
+            if (active_zone >= 4) {
 
                 // Apply training function here
                 // TODO
@@ -368,12 +423,24 @@ void task_imu (void *args) {
                 // Signal that training is complete
                 xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_TRAIN_DONE);
 
-                // Reset the mode
-                mode = IMU_MODE_IDLE;
+                // Change the mode to brushing
+                mode = IMU_MODE_BRUSH;
 
-                ESP_LOGE(IMU_TASK_NAME, "Training finished!");
+                // Reset the sample counter and active zones
+                sample_counter = active_zone = 0;
+
+                ESP_LOGW(IMU_TASK_NAME, "Training finished!");
 
             } else {
+
+                // [DEBUG] Otherwise print the current sample
+                printf("%d, %d, %d, %d, %d, %d\n", 
+                data.ax - g_calibration_data.ax,
+                data.ay - g_calibration_data.ay,
+                data.az - g_calibration_data.az,
+                data.gx - g_calibration_data.gx,
+                data.gy - g_calibration_data.gy,
+                data.gz - g_calibration_data.gz); 
 
                 // If sample counter is zero ring (at first)
                 if (sample_counter == 1) {
@@ -381,15 +448,14 @@ void task_imu (void *args) {
                     buzzer_action(1, 50);                    
                 }
 
-                // If filled buffer, switch training zone and reset
-                if (sample_counter > IMU_TRAINING_SAMPLE_BUF_SIZE) {
-                    training_zone++;
+                // Store the current data
+                g_train_data[active_zone][sample_counter - 1] = data;
+
+                // If at (or exceed) limit, switch zone and reset
+                if (sample_counter >= IMU_TRAINING_SAMPLE_BUF_SIZE) {
+                    active_zone++;
+                    printf("--- Zone %u ---\n", active_zone);
                     sample_counter = 0;
-
-                } else {
-
-                    // Store data in training set
-                    g_train_data[training_zone][sample_counter - 1] = data;
                 }
             }
 
@@ -402,7 +468,7 @@ void task_imu (void *args) {
 
             // Transition to training mode if requested
             if (is_pending_training) {
-                ESP_LOGE(IMU_TASK_NAME, "Training request!");
+                ESP_LOGW(IMU_TASK_NAME, "Training request!");
 
                 // Update the task mode
                 mode = IMU_MODE_TRAIN;
@@ -410,11 +476,8 @@ void task_imu (void *args) {
                 // Unset pending flag (now being handled)
                 is_pending_training = 0;
 
-                // Reset counter
-                sample_counter = 0;
-
-                // Reset training zone to zero
-                training_zone = 0;
+                // Reset counter and active zone
+                sample_counter = active_zone = 0;
 
                 // Defer to next cycle
                 continue;
@@ -423,15 +486,15 @@ void task_imu (void *args) {
             // Otherwise in normal mode
 
             // [DEBUG] Print normal data
-            /* printf("%d, %d, %d, %d, %d, %d\n", 
-                data.ax - g_calibration_data.ax,
-                data.ay - g_calibration_data.ay,
-                data.az - g_calibration_data.az,
-                data.gx - g_calibration_data.gx,
-                data.gy - g_calibration_data.gy,
-                data.gz - g_calibration_data.gz); */
+             // printf("%d, %d, %d, %d, %d, %d\n", 
+             //    data.ax - g_calibration_data.ax,
+             //    data.ay - g_calibration_data.ay,
+             //    data.az - g_calibration_data.az,
+             //    data.gx - g_calibration_data.gx,
+             //    data.gy - g_calibration_data.gy,
+             //    data.gz - g_calibration_data.gz); 
 
-            // Push data to the processed queue at a rate of 5Hz
+            // Push data to the processed queue at a rate of 4Hz
             if ((sample_counter % 10) == 0) {
                 imu_proc_data_t proc_data = (imu_proc_data_t){
                     .rate = sample_counter,

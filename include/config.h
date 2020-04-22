@@ -72,7 +72,7 @@
 #define I2C_IMU_INTR_PIN                15
 
 // Interrupt priority (default)
-#define I2C_IMU_INTR_FLAG_DEFAULT        0
+#define I2C_IMU_INTR_FLAG_DEFAULT        2
 
 // I2C port for the IMU
 #define I2C_IMU_PORT_NUM                  I2C_NUM_0

@@ -100,30 +100,6 @@ static void buzzer_action (uint8_t repeats, uint16_t duration) {
 }
 
 
-// Self-incrementing timer callback
-static void timer_callback (TimerHandle_t timer) {
-	const uint32_t max_callback_count = 4;
-	uint32_t callback_count;
-
-	// Obtain number of times timer has expired
-	callback_count = (uint32_t)pvTimerGetTimerID(timer);
-
-	// Check if timer has expired; if so, end callbacks
-	if (++callback_count > max_callback_count) {
-		xTimerStop(timer, 0);
-
-		// Signal that brushing was completed
-		xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_BRUSH_DONE);
-	} else {
-
-		// Provide user feedback
-		buzzer_action(1, 50);
-
-		vTimerSetTimerID(timer, (void *)callback_count);
-	}
-}
-
-
 // Procedure processing all BLE received messages
 void process_rx_queue () {
 	esp_err_t err;                          // Error tracking
@@ -205,41 +181,6 @@ void process_data_queue (brush_mode_t mode) {
 }
 
 
-// Procedure that aborts current task + issues instructions to others
-void services_reset () {
-
-	// Signal the other services
-	xEventGroupSetBits(g_signal_group, IMU_SIGNAL_RESET);
-
-	// Stop the timer
-	if (xTimerStop(g_active_mode_timer, 0x0) != pdPASS) {
-		ESP_LOGE("CTRL", "Couldn't stop the timer!");
-	}
-
-	// Ring the buzzer
-	buzzer_action(0, 750);
-}
-
-
-// Procedure that issues preparatory instructions to other tasks
-void services_stage () {
-
-	// Signal for the training step
-	xEventGroupSetBits(g_signal_group, IMU_SIGNAL_TRAIN_START);
-}
-
-
-// Procedure that begins the main service
-void services_start () {
-
-	// Switching to live
-	buzzer_action(0, 250);
-
-	// Kick off timer
-	if (xTimerStart(g_active_mode_timer, 0x0) != pdPASS) {
-		ESP_LOGE("CTRL", "Couldn't start software timer!");
-	}
-}
 
 
 /*
@@ -255,13 +196,6 @@ void task_ctrl (void *args) {
 	uint32_t signals;                       // Signal group flags
 	const TickType_t ctrl_block_time = 32;  // Poll time before control loop
 	int isConnected = 0;                    // Connected flag
-
-	// 30 seconds
-	const TickType_t timer_period = pdMS_TO_TICKS(30 * 1000);
-
-	// Create the timer
-	g_active_mode_timer = xTimerCreate("Live-Timer", timer_period,
-		pdTRUE, (void *)0x0, timer_callback);
 
 
 	// Initialize the RX queue
@@ -303,14 +237,10 @@ void task_ctrl (void *args) {
 		// Check if brushing is complete
 		if ((signals & CTRL_SIGNAL_BRUSH_DONE) != 0) {
 
-			ESP_LOGE(CTRL_TASK_NAME, "Brushing finished!");
-
-
-			// Sound buzzer to mark end
-			buzzer_action(0, 750);
+			ESP_LOGW(CTRL_TASK_NAME, "Brushing finished!");
 
 			// Dispatch report if connected
-			ESP_LOGI(CTRL_TASK_NAME, "Whhoo whee sent report!!");
+			ESP_LOGW(CTRL_TASK_NAME, "Whhoo whee sent report!!");
 
 			// Set mode back to idle
 			mode = CTRL_MODE_IDLE;
@@ -318,20 +248,30 @@ void task_ctrl (void *args) {
 
 		// Check if training is complete
 		if ((signals & CTRL_SIGNAL_TRAIN_DONE) != 0) {
-			ESP_LOGE(CTRL_TASK_NAME, "Training signalled finished!");
+			ESP_LOGW(CTRL_TASK_NAME, "Training signalled finished!");
 
-			services_start();
+			// Update mode
 			mode = CTRL_MODE_BRUSH;
 		}
 
 		// Check if there was a button toggle
 		if ((signals & CTRL_SIGNAL_BTN_TOGGLE) != 0) {
 			if (mode > CTRL_MODE_IDLE) {
-				ESP_LOGE(CTRL_TASK_NAME, "Resetting");
-				services_reset();
+
+				// Log reset request
+				ESP_LOGW(CTRL_TASK_NAME, "Resetting");
+
+				// Signal the other services
+				xEventGroupSetBits(g_signal_group, IMU_SIGNAL_RESET);
+
+				// Update mode
 				mode = CTRL_MODE_IDLE;
 			} else {
-				services_stage();
+
+				// Signal to begin training
+				xEventGroupSetBits(g_signal_group, IMU_SIGNAL_TRAIN_START);
+
+				// Update mode
 				mode = CTRL_MODE_TRAIN;
 			}
 		}
