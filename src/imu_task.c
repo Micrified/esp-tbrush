@@ -352,18 +352,14 @@ void task_imu (void *args) {
                 ESP_LOGW(IMU_TASK_NAME, "Brushing finished!");
             } else {
 
-                // Classify sample
-                brush_zone_t z = classify_rt (&data);
-
                 // [DEBUG] Otherwise print the current sample
-                printf("%d, %d, %d, %d, %d, %d, %d\n", 
+                printf("%d, %d, %d, %d, %d, %d\n", 
                 data.ax - g_calibration_data.ax,
                 data.ay - g_calibration_data.ay,
                 data.az - g_calibration_data.az,
                 data.gx - g_calibration_data.gx,
                 data.gy - g_calibration_data.gy,
-                data.gz - g_calibration_data.gz,
-                z);
+                data.gz - g_calibration_data.gz);
 
 
                 // If sample counter is zero ring (at first)
@@ -378,6 +374,15 @@ void task_imu (void *args) {
                     printf("--- Zone %u ---\n", active_zone);
                     sample_counter = 0;
                 }
+
+                // Push data to the queue at 10Hz for classification
+                if ((sample_counter % 4) == 0) {
+                    if (xQueueSendToBack(g_raw_data_queue, &data, 0)
+                        != pdTRUE) {
+                        ERR("Processed Data Queue overfull!");
+                    }
+                } 
+
             }
 
             // Defer to next cycle so as to not reuse sample
@@ -455,30 +460,6 @@ void task_imu (void *args) {
                 // Defer to next cycle
                 continue;
             }
-
-            // Otherwise in normal mode
-
-            // [DEBUG] Print normal data
-             // printf("%d, %d, %d, %d, %d, %d\n", 
-             //    data.ax - g_calibration_data.ax,
-             //    data.ay - g_calibration_data.ay,
-             //    data.az - g_calibration_data.az,
-             //    data.gx - g_calibration_data.gx,
-             //    data.gy - g_calibration_data.gy,
-             //    data.gz - g_calibration_data.gz); 
-
-            // Push data to the processed queue at a rate of 4Hz
-            if ((sample_counter % 10) == 0) {
-                imu_proc_data_t proc_data = (imu_proc_data_t){
-                    .rate = sample_counter,
-                    .zone = 0x0
-                };
-                if (xQueueSendToBack(g_processed_data_queue, &proc_data, 0)
-                    != pdTRUE) {
-                    ERR("Processed Data Queue overfull!");
-                }
-            }
-
         }
 
 

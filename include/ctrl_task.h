@@ -28,9 +28,11 @@
 #include "signals.h"
 #include "ble.h"
 #include "msg.h"
+#include "classifier.h"
 
 #include "imu_task.h"
 #include "ui_task.h"
+
 
 
 /*

@@ -69,7 +69,7 @@ extern xQueueHandle g_ui_action_queue;
 
 
 // [EXTERN] Global processed data queue
-extern xQueueHandle g_processed_data_queue;
+extern xQueueHandle g_raw_data_queue;
 
 
 #endif

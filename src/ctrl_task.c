@@ -156,27 +156,32 @@ void process_tx_queue (int isConnected) {
 // Procedure processing all processed data messages
 void process_data_queue (brush_mode_t mode) {
 	esp_err_t err;
-	imu_proc_data_t proc_data;
+	mpu6050_data_t data;
 	msg_t msg;
 	uint8_t buffer[sizeof(msg_t)];
 
 	// While there exists processed data to transmit
-	while (xQueueReceive(g_processed_data_queue, &proc_data, 0) == pdPASS) {
+	while (xQueueReceive(g_raw_data_queue, &data, 0) == pdPASS) {
+
+		// Classify the data
+		brush_zone_t z = classify_rt(&data);
+
+		ESP_LOGW(CTRL_TASK_NAME, "Zone: %d", z);
 
 		// Configure the message to send
-		msg.type = MESSAGE_TYPE_STATUS;
-		msg.data.status.mode = mode;
-		msg.data.status.zone = proc_data.zone;
-		msg.data.status.rate = proc_data.rate;
-		msg.data.status.progress = 5;
+		// msg.type = MESSAGE_TYPE_STATUS;
+		// msg.data.status.mode = mode;
+		// msg.data.status.zone = proc_data.zone;
+		// msg.data.status.rate = proc_data.rate;
+		// msg.data.status.progress = 5;
 
-		// Serialize the message
-		size_t tx_size = msg_pack(&msg, buffer);
+		// // Serialize the message
+		// size_t tx_size = msg_pack(&msg, buffer);
 
-		// Write the message to the transmission queue
-		if ((err = enqueue_msg(g_ble_tx_queue, buffer, tx_size)) != ESP_OK) {
-			ESP_LOGE(CTRL_TASK_NAME, "Unable to enqueue msg to tx queue!");
-		}
+		// // Write the message to the transmission queue
+		// if ((err = enqueue_msg(g_ble_tx_queue, buffer, tx_size)) != ESP_OK) {
+		// 	ESP_LOGE(CTRL_TASK_NAME, "Unable to enqueue msg to tx queue!");
+		// }
 	}
 }
 

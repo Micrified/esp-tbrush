@@ -31,6 +31,7 @@
 #include "msg.h"
 #include "classifier.h"
 
+
 /*
  *******************************************************************************
  *                             Symbolic Constants                              *
@@ -66,8 +67,8 @@
 #define IMU_TASK_MODE_CALIBRATION          (1 << 0)
 
 
-// Number of elements in the processed data queue
-#define IMU_PROCESSED_DATA_QUEUE_SIZE		64
+// Number of elements in the raw data queue
+#define IMU_RAW_DATA_QUEUE_SIZE		       8
 
 
 /*
@@ -84,13 +85,6 @@ typedef enum {
 	IMU_MODE_TRAIN,
 	IMU_MODE_BRUSH
 } imu_mode_t;
-
-
-// Type describing processed data
-typedef struct {
-	uint8_t rate;       // Brushing rate (in Hz)
-	brush_zone_t zone;  // Brushing zone
-} imu_proc_data_t;
 
 
 /*

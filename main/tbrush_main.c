@@ -60,8 +60,8 @@ EventGroupHandle_t g_signal_group;
 xQueueHandle g_ui_action_queue = NULL;
 
 
-// Queue holding processed data (from the IMU) to be processed by control task
-xQueueHandle g_processed_data_queue = NULL;
+// Queue holding raw data (from the IMU) to be processed by control task
+xQueueHandle g_raw_data_queue = NULL;
 
 
 /*
@@ -141,8 +141,8 @@ void app_main (void) {
     }
 
     // Initialize the processed data queue
-    if ((g_processed_data_queue = xQueueCreate(IMU_PROCESSED_DATA_QUEUE_SIZE,
-        sizeof(imu_proc_data_t))) == NULL) {
+    if ((g_raw_data_queue = xQueueCreate(IMU_RAW_DATA_QUEUE_SIZE,
+        sizeof(mpu6050_data_t))) == NULL) {
         ERR("Insufficient memory to create processed data queue!");
         goto reboot;
     }
