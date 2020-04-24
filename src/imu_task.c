@@ -168,19 +168,23 @@ void on_training_data_complete (void) {
 
     // Training data is located in these arrays (IMU_TRAINING_SAMPLE_BUF_SIZE)
     // The size is set to 150 (50Hz ~ 3 seconds worth per zone)
-    mpu6050_data_t *data_ll = g_train_data_ll;
-    mpu6050_data_t *data_lr = g_train_data_lr;
-    mpu6050_data_t *data_tl = g_train_data_tl;
-    mpu6050_data_t *data_tr = g_train_data_tr;
+    // mpu6050_data_t *data_ll = g_train_data_ll;
+    // mpu6050_data_t *data_lr = g_train_data_lr;
+    // mpu6050_data_t *data_tl = g_train_data_tl;
+    // mpu6050_data_t *data_tr = g_train_data_tr;
 
-    // Do whatever with the data 
+    // Train data
+    train(g_train_data);
+    
 }
 
 
 // Called to classify a sample (brush_zone_t is defined in msg.h)
 brush_zone_t on_data_classification (mpu6050_data_t *data_p) {
+    brush_zone_t brush_zone;
 
     // Do classification on data provided
+    brush_zone = classify(data_p);
 
     // Return type (max is not allowed - but is a placeholder)
     return BRUSH_MODE_MAX;

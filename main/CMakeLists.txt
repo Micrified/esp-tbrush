@@ -1,2 +1,2 @@
-idf_component_register(SRCS "tbrush_main.c" "../src/mpu6050.c" "../src/imu_task.c" "../src/ui_task.c" "../src/ble.c" "../src/ctrl_task.c" "../src/msg.c"
+idf_component_register(SRCS "tbrush_main.c" "../src/mpu6050.c" "../src/imu_task.c" "../src/ui_task.c" "../src/ble.c" "../src/ctrl_task.c" "../src/msg.c" "../src/classifier.c"
                     INCLUDE_DIRS "../include/")
