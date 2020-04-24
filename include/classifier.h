@@ -19,8 +19,9 @@
 
 #include "math.h"
 #include "msg.h"
-#include "imu.h"
-#include "imu_task.h"
+#include "config.h"
+#include "mpu6050.h"
+#include "msg.h"
 
 
 /*
@@ -44,6 +45,14 @@
 
 // Value that describes the weight of the next sample in the low pass filter
 #define ALPHA							   0.1
+
+// Handy MAX macro
+#define max(a,b)             \
+({                           \
+    __typeof__ (a) _a = (a); \
+    __typeof__ (b) _b = (b); \
+    _a > _b ? _a : _b;       \
+})
 
 
 /*
@@ -75,18 +84,6 @@ typedef struct {
 */
 
 
-/* @brief Low pass filter that filters data to remove noise 
- * @note Only use to filter training data for a higher KNN accuracy
- * 
- * @param 
- * - train_data: set of data for training
- * - train_data_filtered: set of filtered training data
- * 
- * @return void
-*/
-void filter_data(mpu6050_data_t **train_data, mpu6050_data_t **train_data_filtered);
-
-
 /* @brief Returns the pitch angle calculated from sensor values
  * 
  * @param 
@@ -107,7 +104,7 @@ double calculate_pitch(mpu6050_data_t *data_p);
 double calculate_roll(mpu6050_data_t *data_p);
 
 
-/* @brief Returns the Eucledian distance between two points in a 2D plane
+/* @brief Returns the Euclidean distance between two points in a 2D plane
  * 
  * @param 
  * - a1: x-value of point 1
@@ -131,47 +128,23 @@ double calculate_distance (double a1, double b1, double a2, double b2);
 int compare (const void *s1, const void *s2);
 
 
-/* @brief Counts the number of each label in a set of neighbors
- * 
- * @param 
- * - neighbors: set of all neighbors containing the distance with each one
- * - counters: array of pointers to the variable holding the counter of each region
- * 
- * @return void
-*/
-void count (neighbor_t *neighbors, uint8_t **counters);
-
-/* @brief Generates a training dataset that comprises [pitch, roll, label]
- * 
- * @param 
- * - train_data: set of data for training
- * 
- * @return void
-*/
-void train (mpu6050_data_t **train_data);
-
-
-/* @brief Generates the distance of a point to all other points
- * 
- * @param 
- * - pitch: pitch angle of data
- * - roll: roll angle of data
- * - neighbors: pointer to an array holding all calculated distances
- * 
- * @return void
-*/
-void generate_neighbors (double pitch, double roll, neighbor_t *neighbors);
-
-
-/* @brief Classifies a sample using the KNN method.
- *
- * @note Sets of samples cannot be empty.
- *
+/* @brief Same as train, but allows for real-time training
  * @param
- * - sample : sample to be classified
- *
- * @return Label of the new sample
+ * - data_p: Pointer to the sample
+ * - zone:   The training zone the sample belongs to
+ * - n:      The number of the sample (< IMU_TRAINING_SAMPLE_BUF_SIZE)
+ * @return void
 */
-brush_zone_t classify (mpu6050_data_t *sample);
+void train_rt (mpu6050_data_t *data_p, brush_zone_t zone, off_t n);
+
+
+/* @brief Classifies a sample using the KNN method
+ * @note  The set of samples cannot be empty, and is assumed to be
+ *        fully set.
+ * @param
+ * - data_p: The data pointer which will get classified
+*/
+brush_zone_t classify_rt (mpu6050_data_t *data_p);
+
 
 #endif

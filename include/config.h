@@ -89,4 +89,19 @@
 #define DEVICE_BLE_SERVICE_NAME           "ESP-Tbrush"
 
 
+/*
+ *******************************************************************************
+ *                   Classification Model Symbolic Constants                   *
+ *******************************************************************************
+*/
+
+
+// Number of samples for training a section
+#define IMU_TRAINING_SAMPLE_BUF_SIZE        120
+
+
+// Number of samples for a brushing session section
+#define IMU_BRUSHING_SAMPLE_SIZE            400
+
+
 #endif

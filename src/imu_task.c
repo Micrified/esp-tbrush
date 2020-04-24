@@ -88,7 +88,7 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
     }
 
     // Configure gyro sensitivity
-    flags = G_CFG_500;
+    flags = G_CFG_250;
     if ((err = mpu6050_configure_gyroscope(&i2c_cfg, flags)) 
     	!= MPU6050_ERR_OK) {
     	return err;
@@ -153,41 +153,6 @@ static void buzzer_action (uint8_t repeats, uint16_t duration) {
     if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
         ERR("Could not send to action queue!");
     }
-}
-
-
-/*
- *******************************************************************************
- *                Classification/Training Function Definitions                 *
- *******************************************************************************
-*/
-
-
-// Called after all training samples are gathered
-void on_training_data_complete (void) {
-
-    // Training data is located in these arrays (IMU_TRAINING_SAMPLE_BUF_SIZE)
-    // The size is set to 150 (50Hz ~ 3 seconds worth per zone)
-    // mpu6050_data_t *data_ll = g_train_data_ll;
-    // mpu6050_data_t *data_lr = g_train_data_lr;
-    // mpu6050_data_t *data_tl = g_train_data_tl;
-    // mpu6050_data_t *data_tr = g_train_data_tr;
-
-    // Train data
-    train(g_train_data);
-    
-}
-
-
-// Called to classify a sample (brush_zone_t is defined in msg.h)
-brush_zone_t on_data_classification (mpu6050_data_t *data_p) {
-    brush_zone_t brush_zone;
-
-    // Do classification on data provided
-    brush_zone = classify(data_p);
-
-    // Return type (max is not allowed - but is a placeholder)
-    return BRUSH_MODE_MAX;
 }
 
 
@@ -387,14 +352,19 @@ void task_imu (void *args) {
                 ESP_LOGW(IMU_TASK_NAME, "Brushing finished!");
             } else {
 
+                // Classify sample
+                brush_zone_t z = classify_rt (&data);
+
                 // [DEBUG] Otherwise print the current sample
-                printf("%d, %d, %d, %d, %d, %d\n", 
+                printf("%d, %d, %d, %d, %d, %d, %d\n", 
                 data.ax - g_calibration_data.ax,
                 data.ay - g_calibration_data.ay,
                 data.az - g_calibration_data.az,
                 data.gx - g_calibration_data.gx,
                 data.gy - g_calibration_data.gy,
-                data.gz - g_calibration_data.gz);
+                data.gz - g_calibration_data.gz,
+                z);
+
 
                 // If sample counter is zero ring (at first)
                 if (sample_counter == 1) {
@@ -417,12 +387,8 @@ void task_imu (void *args) {
         // If in training mode
         if (mode == IMU_MODE_TRAIN) {
 
-            // If all zones are trained, go back to idle and signal
+            // If all zones are trained, switch to brush mode and signal
             if (active_zone >= 4) {
-
-                // Apply training function here
-                // TODO
-                on_training_data_complete();
 
                 // Signal that training is complete
                 xEventGroupSetBits(g_signal_group, CTRL_SIGNAL_TRAIN_DONE);
@@ -454,6 +420,9 @@ void task_imu (void *args) {
 
                 // Store the current data
                 g_train_data[active_zone][sample_counter - 1] = data;
+
+                // Send it to the training function
+                train_rt(&data, active_zone, sample_counter - 1);
 
                 // If at (or exceed) limit, switch zone and reset
                 if (sample_counter >= IMU_TRAINING_SAMPLE_BUF_SIZE) {
@@ -502,7 +471,7 @@ void task_imu (void *args) {
             if ((sample_counter % 10) == 0) {
                 imu_proc_data_t proc_data = (imu_proc_data_t){
                     .rate = sample_counter,
-                    .zone = on_data_classification(&data)
+                    .zone = 0x0
                 };
                 if (xQueueSendToBack(g_processed_data_queue, &proc_data, 0)
                     != pdTRUE) {
