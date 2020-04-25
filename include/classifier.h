@@ -18,7 +18,6 @@
 
 
 #include "math.h"
-#include "msg.h"
 #include "config.h"
 #include "mpu6050.h"
 #include "msg.h"
@@ -126,6 +125,14 @@ double calculate_distance (double a1, double b1, double a2, double b2);
  * @return void
 */
 int compare (const void *s1, const void *s2);
+
+/* @brief Applies a filter to the given value. 
+ * @param
+ * - data_p: Pointer to the sample to filter
+ * - last_p: Pointer to the last filtered value
+ * @return void
+*/
+void filter (mpu6050_data_t *data_p, mpu6050_data_t *last_p);
 
 
 /* @brief Same as train, but allows for real-time training

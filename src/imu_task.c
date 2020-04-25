@@ -22,21 +22,6 @@ mpu6050_data_t g_calibration_data = (mpu6050_data_t) {
 TimerHandle_t g_training_mode_timer = NULL;
 
 
-// The training buffers
-static mpu6050_data_t g_train_data_ll[IMU_TRAINING_SAMPLE_BUF_SIZE];
-static mpu6050_data_t g_train_data_lr[IMU_TRAINING_SAMPLE_BUF_SIZE]; 
-static mpu6050_data_t g_train_data_tl[IMU_TRAINING_SAMPLE_BUF_SIZE];
-static mpu6050_data_t g_train_data_tr[IMU_TRAINING_SAMPLE_BUF_SIZE];
-
-// Training buffer pointer - buffer
-static mpu6050_data_t *g_train_data[4] = {
-    g_train_data_ll,
-    g_train_data_lr,
-    g_train_data_tl,
-    g_train_data_tr
-};
-
-
 /*
  *******************************************************************************
  *                        Internal Function Definitions                        *
@@ -166,6 +151,7 @@ static void buzzer_action (uint8_t repeats, uint16_t duration) {
 void task_imu (void *args) {
 	esp_err_t err = ESP_OK;                    // Error tracking
 	mpu6050_data_t data;                       // Instantaneous IMU data
+    mpu6050_data_t data_last;                  // Used for filtering brush data
 	uint32_t signals, pin_id;                  // Signal bits, interrupt pin
 	int16_t calibration_ticks = 0;             // Number of elapsed calib ticks
 	imu_mode_t mode = IMU_MODE_CALIBRATION;    // Current IMU mode
@@ -178,7 +164,6 @@ void task_imu (void *args) {
     uint8_t active_zone = 0;                   // Current brush/trained zone
     uint8_t is_pending_training = 0;           // Set to 1 if training pending
     uint8_t is_pending_reset = 0;              // Set to 1 if reset pending
-
 	// Initialize the event-queue
 	if ((g_gpio_event_queue = xQueueCreate(IMU_INTERRUPT_QUEUE_SIZE,
 		sizeof(uint32_t))) == NULL) {
@@ -352,6 +337,9 @@ void task_imu (void *args) {
                 ESP_LOGW(IMU_TASK_NAME, "Brushing finished!");
             } else {
 
+                // Filter the data and show the filtered value
+                filter(&data, &data_last);
+
                 // [DEBUG] Otherwise print the current sample
                 printf("%d, %d, %d, %d, %d, %d\n", 
                 data.ax - g_calibration_data.ax,
@@ -404,6 +392,9 @@ void task_imu (void *args) {
                 // Reset the sample counter and active zones
                 sample_counter = active_zone = 0;
 
+                // Zero out the last data value
+                data_last = (mpu6050_data_t){0};
+
                 ESP_LOGW(IMU_TASK_NAME, "Training finished!");
 
             } else {
@@ -422,9 +413,6 @@ void task_imu (void *args) {
                     // Sound buzzer
                     buzzer_action(1, 50);                    
                 }
-
-                // Store the current data
-                g_train_data[active_zone][sample_counter - 1] = data;
 
                 // Send it to the training function
                 train_rt(&data, active_zone, sample_counter - 1);

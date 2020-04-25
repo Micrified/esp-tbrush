@@ -64,7 +64,36 @@ int compare (const void *s1, const void *s2) {
 	neighbor_t *n1 = (neighbor_t *) s1;
 	neighbor_t *n2 = (neighbor_t *) s2;
 
-    return abs(n1->distance - n2->distance); 
+    // qsort comparison rules
+    // (1) A negative value if s1 < s2
+    // (2) Zero if s1 == s2
+    // (3) A positive value if s1 > s2
+
+    if (n2->distance > n1->distance) {
+        return -1;
+    }
+
+    if (n2->distance == n1->distance) {
+        return 0;
+    }
+
+    return 1;
+}
+
+
+// Applies a filter to the given value. 
+void filter (mpu6050_data_t *data_p, mpu6050_data_t *last_p) {
+
+    // Update data_p with last_p
+    data_p->ax = ALPHA * data_p->ax + (1-ALPHA) * last_p->ax;
+    data_p->ay = ALPHA * data_p->ay + (1-ALPHA) * last_p->ay;
+    data_p->az = ALPHA * data_p->az + (1-ALPHA) * last_p->az;
+    data_p->gx = ALPHA * data_p->gx + (1-ALPHA) * last_p->gx;
+    data_p->gy = ALPHA * data_p->gy + (1-ALPHA) * last_p->gy;
+    data_p->gz = ALPHA * data_p->gz + (1-ALPHA) * last_p->gz;
+
+    // Update last with latest
+    *last_p = *data_p;
 }
 
 
@@ -79,24 +108,14 @@ void train_rt (mpu6050_data_t *data_p, brush_zone_t zone, off_t n) {
     if (k == 0) {
         data_filtered_last = (mpu6050_data_t){0};
     }
-    
-    // Compute the filtered sample :: y_t = ALPHA * x_t + (1-ALPHA) * y[t-1];
-    mpu6050_data_t data_filtered = (mpu6050_data_t) {
-        .ax = ALPHA * data_p->ax + (1-ALPHA) * data_filtered_last.ax,
-        .ay = ALPHA * data_p->ay + (1-ALPHA) * data_filtered_last.ay,
-        .az = ALPHA * data_p->az + (1-ALPHA) * data_filtered_last.az,
-        .gx = ALPHA * data_p->gx + (1-ALPHA) * data_filtered_last.gx,
-        .gy = ALPHA * data_p->gy + (1-ALPHA) * data_filtered_last.gy,
-        .gz = ALPHA * data_p->gz + (1-ALPHA) * data_filtered_last.gz
-    };
 
-    // Update filtered_last
-    data_filtered_last = data_filtered;
+    // Apply the filter, and update the last
+    filter(data_p, &data_filtered_last);
 
     // Create a new trained data point
     trained_data_t trained_data = (trained_data_t) {
-        .pitch      = calculate_pitch(&data_filtered),
-        .roll       = calculate_roll(&data_filtered),
+        .pitch      = calculate_pitch(&data_filtered_last),
+        .roll       = calculate_roll(&data_filtered_last),
         .brush_zone = zone
     };
 
@@ -109,7 +128,7 @@ brush_zone_t classify_rt (mpu6050_data_t *data_p) {
     double pitch, roll;
     uint8_t zone_count[4] = {0};
 
-    // Compute pitch and roll. 
+    // Compute pitch and roll
     pitch = calculate_pitch(data_p); roll = calculate_roll(data_p);
 
     // Compute neighbours
@@ -120,7 +139,7 @@ brush_zone_t classify_rt (mpu6050_data_t *data_p) {
 
         // Compute the euclidean distance
         g_neighbors[i] = (neighbor_t) {
-            .distance = calculate_distance(pitch, t->pitch, roll, t->roll),
+            .distance = calculate_distance(pitch, roll, t->pitch, t->roll),
             .brush_zone = t->brush_zone
         };
     }
