@@ -86,7 +86,7 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
     	return err;
     }
 
-    // Set the sampling rate to ~20Hz
+    // Set the sampling rate to ~40Hz
     flags = 49;
     if ((err = mpu6050_set_sample_rate_divider(&i2c_cfg, flags)) 
     	!= MPU6050_ERR_OK) {
@@ -347,15 +347,6 @@ void task_imu (void *args) {
                 ESP_LOGW(IMU_TASK_NAME, "Brushing finished!");
             } else {
 
-                // [DEBUG] Otherwise print the current sample
-                // printf("%d, %d, %d, %d, %d, %d\n", 
-                // data.ax,
-                // data.ay,
-                // data.az,
-                // data.gx,
-                // data.gy,
-                // data.gz);
-
                 // Filter the data and show the filtered value
                 filter(&data, &data_last);
 
@@ -372,13 +363,11 @@ void task_imu (void *args) {
                     sample_counter = 0;
                 }
 
-                // Push data to the queue at 10Hz for classification
-                if ((sample_counter % 1) == 0) {
-                    if (xQueueSendToBack(g_raw_data_queue, &data, 0)
-                        != pdTRUE) {
-                        ERR("Processed Data Queue overfull!");
-                    }
-                } 
+                // Push data to processing queue
+                if (xQueueSendToBack(g_raw_data_queue, &data, 0)
+                    != pdTRUE) {
+                    ERR("Processed Data Queue overfull!");
+                }
 
             }
 

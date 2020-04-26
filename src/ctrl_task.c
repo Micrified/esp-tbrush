@@ -20,6 +20,10 @@ static xQueueHandle g_ble_tx_queue = NULL;
 TimerHandle_t g_active_mode_timer = NULL;
 
 
+// The results for a brushing session (4 buckets allowing x/400)
+static uint16_t g_results[4][4];
+
+
 /*
  *******************************************************************************
  *                        Internal Function Definitions                        *
@@ -86,20 +90,6 @@ esp_err_t ble_state_event_cb(ble_state_event_t state_event) {
 }
 
 
-// Creates and enqueues an action sounding the buzzer
-static void buzzer_action (uint8_t repeats, uint16_t duration) {
-	ui_action_t action = (ui_action_t) {
-		.flags = UI_ACTION_BUZZER,
-		.duration = duration,
-		.periods = repeats
-	};
-
-	if (xQueueSendToBack(g_ui_action_queue, &action, 0) != pdTRUE) {
-		ERR("Could not send to action queue!");
-	}
-}
-
-
 // Procedure processing all BLE received messages
 void process_rx_queue () {
 	esp_err_t err;                          // Error tracking
@@ -151,58 +141,45 @@ void process_tx_queue (int isConnected) {
 		}
 	}
 }
-trained_data_t g_results[IMU_BRUSHING_SAMPLE_SIZE * 4];
 
 // Procedure processing all processed data messages
 void process_data_queue (brush_mode_t mode) {
-	esp_err_t err;
 	mpu6050_data_t data;
 	uint8_t buffer[7] = {MSG_START_BYTE, MSG_START_BYTE, MESSAGE_TYPE_STATUS, 
 		0x0, 0x0, 0x0, 0x0}; // Mode, Zone, Rate, Progress
 	static uint16_t n = 0;
 
+	// If receiving train mode, then zero out the counter in prep for brush mode
+	if (n == CTRL_MODE_TRAIN) {
+		n = 0;
+	}
+
 	// While there exists processed data to transmit
 	while (xQueueReceive(g_raw_data_queue, &data, 0) == pdPASS) {
 
-		// Classify the data
+		// Classify the sample
 		brush_zone_t zone = classify_rt(&data);
-		printf("%d\n", zone);
 
-		// Increment the sample number
+		// Update results
+		g_results[n / IMU_BRUSHING_SAMPLE_SIZE][zone]++;
+
+		// Increment the message count 
 		n++;
 
-		// Every 4th element send an update
-		if ((n % 4) == 0) {
-
-			// Update message fields
-			buffer[3] = mode;
-			buffer[4] = zone;
-			buffer[6] = n / 16;
-
-			enqueue_msg(g_ble_tx_queue, buffer, 7);
+		// Consider only every 4th sample
+		if ((n % 4) != 0) {
+			continue;
 		}
 
+		// Prepare the message
+		buffer[3] = mode;
+		buffer[4] = zone;
+		buffer[6] = n / ((IMU_BRUSHING_SAMPLE_SIZE * 4) / 100);
 
-		// ESP_LOGW(CTRL_TASK_NAME, "Zone: %d", z);
-
-		// Configure the message to send
-		// msg.type = MESSAGE_TYPE_STATUS;
-		// msg.data.status.mode = mode;
-		// msg.data.status.zone = proc_data.zone;
-		// msg.data.status.rate = proc_data.rate;
-		// msg.data.status.progress = 5;
-
-		// // Serialize the message
-		// size_t tx_size = msg_pack(&msg, buffer);
-
-		// // Write the message to the transmission queue
-		// if ((err = enqueue_msg(g_ble_tx_queue, buffer, tx_size)) != ESP_OK) {
-		// 	ESP_LOGE(CTRL_TASK_NAME, "Unable to enqueue msg to tx queue!");
-		// }
+		// Enqueue the message
+		enqueue_msg(g_ble_tx_queue, buffer, 7);
 	}
 }
-
-
 
 
 /*
@@ -219,6 +196,11 @@ void task_ctrl (void *args) {
 	const TickType_t ctrl_block_time = 32;  // Poll time before control loop
 	int isConnected = 0;                    // Connected flag
 
+	uint8_t result_buffer[12] = {MSG_START_BYTE, MSG_START_BYTE, MESSAGE_TYPE_RESULT,
+		0x0,                // ID
+		0x0, 0x0, 0x0, 0x0, // P_ll, R_ll, P_lr, R_lr
+		0x0, 0x0, 0x0, 0x0  // P_tl, R_tl, P_tr, R_tr
+	};
 
 	// Initialize the RX queue
 	if ((g_ble_rx_queue = xQueueCreate(CTRL_TASK_BLE_RX_QUEUE_SIZE, 
@@ -256,37 +238,6 @@ void task_ctrl (void *args) {
 			isConnected = 0;
 		}
 
-		// Check if brushing is complete
-		if ((signals & CTRL_SIGNAL_BRUSH_DONE) != 0) {
-
-			ESP_LOGW(CTRL_TASK_NAME, "Brushing finished!");
-
-			// Dispatch report if connected
-			ESP_LOGW(CTRL_TASK_NAME, "Whhoo whee sent report!!");
-
-			// Print the training data
-			display_training_data();
-
-
-			// Display results
-			// for (int y = 0; y < IMU_BRUSHING_SAMPLE_SIZE * 4; ++y) {
-			// 	brush_zone_t z = classify_rt_2(g_results[y].pitch, g_results[y].roll);
-			// 	printf("%d. {.pitch = %f, .roll = %f, .brush_zone = %d}\n",
-			// 		y, g_results[y].pitch, g_results[y].roll, z);
-			// }
-
-			// Set mode back to idle
-			mode = CTRL_MODE_IDLE;
-		}
-
-		// Check if training is complete
-		if ((signals & CTRL_SIGNAL_TRAIN_DONE) != 0) {
-			ESP_LOGW(CTRL_TASK_NAME, "Training signalled finished!");
-
-			// Update mode
-			mode = CTRL_MODE_BRUSH;
-		}
-
 		// Check if there was a button toggle
 		if ((signals & CTRL_SIGNAL_BTN_TOGGLE) != 0) {
 			if (mode > CTRL_MODE_IDLE) {
@@ -307,6 +258,44 @@ void task_ctrl (void *args) {
 				// Update mode
 				mode = CTRL_MODE_TRAIN;
 			}
+		}
+
+		// Check if brushing is complete
+		if ((signals & CTRL_SIGNAL_BRUSH_DONE) != 0) {
+
+			ESP_LOGW(CTRL_TASK_NAME, "Brushing finished!");
+
+			// Display results
+			printf("Zone 0 :: %d / %d\n", g_results[0][0], IMU_BRUSHING_SAMPLE_SIZE);
+			printf("Zone 1 :: %d / %d\n", g_results[1][1], IMU_BRUSHING_SAMPLE_SIZE);
+			printf("Zone 2 :: %d / %d\n", g_results[2][2], IMU_BRUSHING_SAMPLE_SIZE);
+			printf("Zone 3 :: %d / %d\n", g_results[3][3], IMU_BRUSHING_SAMPLE_SIZE);
+
+			// Configure the results message
+			result_buffer[4]  = g_results[0][0] / (IMU_BRUSHING_SAMPLE_SIZE / 100);
+			result_buffer[6]  = g_results[1][1] / (IMU_BRUSHING_SAMPLE_SIZE / 100);
+			result_buffer[8]  = g_results[2][2] / (IMU_BRUSHING_SAMPLE_SIZE / 100);
+			result_buffer[10] = g_results[3][3] / (IMU_BRUSHING_SAMPLE_SIZE / 100);
+
+			//
+			enqueue_msg(g_ble_tx_queue, result_buffer, 12);
+
+			// Print the training data
+			//display_training_data();
+
+			// Dispatch report if connected
+			ESP_LOGW(CTRL_TASK_NAME, "Whhoo whee sent report!!");
+
+			// Set mode back to idle
+			mode = CTRL_MODE_IDLE;
+		}
+
+		// Check if training is complete
+		if ((signals & CTRL_SIGNAL_TRAIN_DONE) != 0) {
+			ESP_LOGW(CTRL_TASK_NAME, "Training signalled finished!");
+
+			// Update mode
+			mode = CTRL_MODE_BRUSH;
 		}
 
 		// Process everything in the recieve message queue if not busy
