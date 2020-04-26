@@ -60,7 +60,7 @@
 
 
 // The number of samples to average when calibrating the system
-#define IMU_CALIBRATION_SAMPLE_SIZE        150
+#define IMU_CALIBRATION_SAMPLE_SIZE        160
 
 
 // Mode 1: Calibration
@@ -68,7 +68,7 @@
 
 
 // Number of elements in the raw data queue
-#define IMU_RAW_DATA_QUEUE_SIZE		       8
+#define IMU_RAW_DATA_QUEUE_SIZE		       32
 
 
 /*

@@ -135,6 +135,12 @@ int compare (const void *s1, const void *s2);
 void filter (mpu6050_data_t *data_p, mpu6050_data_t *last_p);
 
 
+/* @brief Outputs the training data
+ * @return void
+*/
+void display_training_data ();
+
+
 /* @brief Same as train, but allows for real-time training
  * @param
  * - data_p: Pointer to the sample

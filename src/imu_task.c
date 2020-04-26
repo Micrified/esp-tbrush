@@ -164,6 +164,7 @@ void task_imu (void *args) {
     uint8_t active_zone = 0;                   // Current brush/trained zone
     uint8_t is_pending_training = 0;           // Set to 1 if training pending
     uint8_t is_pending_reset = 0;              // Set to 1 if reset pending
+    uint16_t skip_counter = 0;                 // Counter for skipping samples during train
 	// Initialize the event-queue
 	if ((g_gpio_event_queue = xQueueCreate(IMU_INTERRUPT_QUEUE_SIZE,
 		sizeof(uint32_t))) == NULL) {
@@ -252,6 +253,14 @@ void task_imu (void *args) {
         // A sample certainly is ready - increment general counter
         sample_counter++;
 
+        // Remove calibration from the data
+        data.ax -= g_calibration_data.ax;
+        data.ay -= g_calibration_data.ay;
+        data.az -= g_calibration_data.az;
+        data.gx -= g_calibration_data.gx;
+        data.gy -= g_calibration_data.gy;
+        data.gz -= g_calibration_data.gz;
+
         // If in calibration mode
         if (mode == IMU_MODE_CALIBRATION) {
 
@@ -337,18 +346,17 @@ void task_imu (void *args) {
                 ESP_LOGW(IMU_TASK_NAME, "Brushing finished!");
             } else {
 
-                // Filter the data and show the filtered value
-                filter(&data, &data_last);
-
                 // [DEBUG] Otherwise print the current sample
                 printf("%d, %d, %d, %d, %d, %d\n", 
-                data.ax - g_calibration_data.ax,
-                data.ay - g_calibration_data.ay,
-                data.az - g_calibration_data.az,
-                data.gx - g_calibration_data.gx,
-                data.gy - g_calibration_data.gy,
-                data.gz - g_calibration_data.gz);
+                data.ax,
+                data.ay,
+                data.az,
+                data.gx,
+                data.gy,
+                data.gz);
 
+                // Filter the data and show the filtered value
+                filter(&data, &data_last);
 
                 // If sample counter is zero ring (at first)
                 if (sample_counter == 1) {
@@ -359,12 +367,12 @@ void task_imu (void *args) {
                 // If at (or exceed) limit, switch zone and reset
                 if (sample_counter >= IMU_BRUSHING_SAMPLE_SIZE) {
                     active_zone++;
-                    printf("--- Zone %u ---\n", active_zone);
+                    //printf("--- Zone %u ---\n", active_zone);
                     sample_counter = 0;
                 }
 
                 // Push data to the queue at 10Hz for classification
-                if ((sample_counter % 4) == 0) {
+                if ((sample_counter % 1) == 0) {
                     if (xQueueSendToBack(g_raw_data_queue, &data, 0)
                         != pdTRUE) {
                         ERR("Processed Data Queue overfull!");
@@ -399,19 +407,32 @@ void task_imu (void *args) {
 
             } else {
 
+                // Deplete the skip counter before proceeding
+                if (skip_counter > 0) {
+                    printf("- Skipped -\n");
+                    skip_counter--;
+                    sample_counter--;
+                    continue;
+                }
+
                 // [DEBUG] Otherwise print the current sample
                 printf("%d, %d, %d, %d, %d, %d\n", 
-                data.ax - g_calibration_data.ax,
-                data.ay - g_calibration_data.ay,
-                data.az - g_calibration_data.az,
-                data.gx - g_calibration_data.gx,
-                data.gy - g_calibration_data.gy,
-                data.gz - g_calibration_data.gz); 
+                data.ax,
+                data.ay,
+                data.az,
+                data.gx,
+                data.gy,
+                data.gz); 
 
-                // If sample counter is zero ring (at first)
+
+                // If skip counter empty and is first sample
                 if (sample_counter == 1) {
+
                     // Sound buzzer
-                    buzzer_action(1, 50);                    
+                    buzzer_action(1, 50);
+
+                    // Set the skip size for next pass
+                    skip_counter = IMU_TRAINING_SAMPLE_DROP_SIZE;                
                 }
 
                 // Send it to the training function

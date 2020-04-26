@@ -152,21 +152,33 @@ void process_tx_queue (int isConnected) {
 	}
 }
 
-
 // Procedure processing all processed data messages
 void process_data_queue (brush_mode_t mode) {
 	esp_err_t err;
 	mpu6050_data_t data;
 	msg_t msg;
 	uint8_t buffer[sizeof(msg_t)];
+	static uint16_t n = 0;
 
 	// While there exists processed data to transmit
 	while (xQueueReceive(g_raw_data_queue, &data, 0) == pdPASS) {
 
-		// Classify the data
-		brush_zone_t z = classify_rt(&data);
+		// New entry into g_test_class
 
-		ESP_LOGW(CTRL_TASK_NAME, "Zone: %d", z);
+		// printf("%d. %d %d %d %d %d %d (.pitch = %f, .roll = %f, .class = %d)\n",
+		// 	n, 
+		// 	data.ax, data.ay, data.az,
+		// 	data.gx, data.gy, data.gz,
+		// 	calculate_pitch(&data),
+		// 	calculate_roll(&data),
+		// 	classify_rt(&data));
+		printf("%d. %d\n", n, classify_rt(&data));
+
+		// Increment the sample number
+		n++;
+
+
+		// ESP_LOGW(CTRL_TASK_NAME, "Zone: %d", z);
 
 		// Configure the message to send
 		// msg.type = MESSAGE_TYPE_STATUS;
@@ -246,6 +258,9 @@ void task_ctrl (void *args) {
 
 			// Dispatch report if connected
 			ESP_LOGW(CTRL_TASK_NAME, "Whhoo whee sent report!!");
+
+			// Print the training data
+			display_training_data();
 
 			// Set mode back to idle
 			mode = CTRL_MODE_IDLE;

@@ -96,6 +96,13 @@ void filter (mpu6050_data_t *data_p, mpu6050_data_t *last_p) {
     *last_p = *data_p;
 }
 
+void display_training_data () {
+    for (int i = 0; i < (IMU_TRAINING_SAMPLE_BUF_SIZE * 4); ++i) {
+        printf("[%d] = {%f, %f, %d}\n", i, g_trained_data[i].pitch,
+            g_trained_data[i].roll, g_trained_data[i].brush_zone);
+    }
+}
+
 
 // Realtime variant of train
 void train_rt (mpu6050_data_t *data_p, brush_zone_t zone, off_t n) {
