@@ -160,4 +160,7 @@ void train_rt (mpu6050_data_t *data_p, brush_zone_t zone, off_t n);
 brush_zone_t classify_rt (mpu6050_data_t *data_p);
 
 
+brush_zone_t classify_rt_2 (double pitch, double roll);
+
+
 #endif

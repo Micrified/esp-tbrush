@@ -97,11 +97,11 @@
 
 
 // Number of samples for training a section
-#define IMU_TRAINING_SAMPLE_BUF_SIZE        120
+#define IMU_TRAINING_SAMPLE_BUF_SIZE        160
 
 
 // Number of samples to skip when changing sections
-#define IMU_TRAINING_SAMPLE_DROP_SIZE       20
+#define IMU_TRAINING_SAMPLE_DROP_SIZE       45
 
 
 // Number of samples for a brushing session section

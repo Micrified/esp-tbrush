@@ -86,8 +86,8 @@ static mpu6050_err_t init_imu (mpu6050_i2c_cfg_t **handle) {
     	return err;
     }
 
-    // Set the sampling rate to ~40Hz
-    flags = 24;
+    // Set the sampling rate to ~20Hz
+    flags = 49;
     if ((err = mpu6050_set_sample_rate_divider(&i2c_cfg, flags)) 
     	!= MPU6050_ERR_OK) {
     	return err;
@@ -347,13 +347,13 @@ void task_imu (void *args) {
             } else {
 
                 // [DEBUG] Otherwise print the current sample
-                printf("%d, %d, %d, %d, %d, %d\n", 
-                data.ax,
-                data.ay,
-                data.az,
-                data.gx,
-                data.gy,
-                data.gz);
+                // printf("%d, %d, %d, %d, %d, %d\n", 
+                // data.ax,
+                // data.ay,
+                // data.az,
+                // data.gx,
+                // data.gy,
+                // data.gz);
 
                 // Filter the data and show the filtered value
                 filter(&data, &data_last);
@@ -409,20 +409,20 @@ void task_imu (void *args) {
 
                 // Deplete the skip counter before proceeding
                 if (skip_counter > 0) {
-                    printf("- Skipped -\n");
+                    //printf("- Skipped -\n");
                     skip_counter--;
                     sample_counter--;
                     continue;
                 }
 
                 // [DEBUG] Otherwise print the current sample
-                printf("%d, %d, %d, %d, %d, %d\n", 
-                data.ax,
-                data.ay,
-                data.az,
-                data.gx,
-                data.gy,
-                data.gz); 
+                // printf("%d, %d, %d, %d, %d, %d\n", 
+                // data.ax,
+                // data.ay,
+                // data.az,
+                // data.gx,
+                // data.gy,
+                // data.gz); 
 
 
                 // If skip counter empty and is first sample

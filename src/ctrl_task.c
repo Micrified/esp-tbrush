@@ -151,6 +151,7 @@ void process_tx_queue (int isConnected) {
 		}
 	}
 }
+trained_data_t g_results[IMU_BRUSHING_SAMPLE_SIZE * 4];
 
 // Procedure processing all processed data messages
 void process_data_queue (brush_mode_t mode) {
@@ -164,16 +165,17 @@ void process_data_queue (brush_mode_t mode) {
 	while (xQueueReceive(g_raw_data_queue, &data, 0) == pdPASS) {
 
 		// New entry into g_test_class
-
+		//g_results[n].pitch = calculate_pitch(&data);
+		//g_results[n].roll  = calculate_roll(&data);
+		//g_results[n].brush_zone = classify_rt(&data);
 		// printf("%d. %d %d %d %d %d %d (.pitch = %f, .roll = %f, .class = %d)\n",
 		// 	n, 
 		// 	data.ax, data.ay, data.az,
 		// 	data.gx, data.gy, data.gz,
 		// 	calculate_pitch(&data),
 		// 	calculate_roll(&data),
-		// 	classify_rt(&data));
-		printf("%d. %d\n", n, classify_rt(&data));
-
+		//	classify_rt(&data));
+		printf("%d\n", classify_rt(&data));
 		// Increment the sample number
 		n++;
 
@@ -261,6 +263,14 @@ void task_ctrl (void *args) {
 
 			// Print the training data
 			display_training_data();
+
+
+			// Display results
+			// for (int y = 0; y < IMU_BRUSHING_SAMPLE_SIZE * 4; ++y) {
+			// 	brush_zone_t z = classify_rt_2(g_results[y].pitch, g_results[y].roll);
+			// 	printf("%d. {.pitch = %f, .roll = %f, .brush_zone = %d}\n",
+			// 		y, g_results[y].pitch, g_results[y].roll, z);
+			// }
 
 			// Set mode back to idle
 			mode = CTRL_MODE_IDLE;

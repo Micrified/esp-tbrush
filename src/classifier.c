@@ -130,7 +130,6 @@ void train_rt (mpu6050_data_t *data_p, brush_zone_t zone, off_t n) {
     g_trained_data[k] = trained_data; 
 }
 
-
 brush_zone_t classify_rt (mpu6050_data_t *data_p) {
     double pitch, roll;
     uint8_t zone_count[4] = {0};
@@ -174,4 +173,45 @@ brush_zone_t classify_rt (mpu6050_data_t *data_p) {
             return zone_count[1] >= zone_count[3] ? 1 : 3;
         }     
     }
+}
+
+brush_zone_t classify_rt_2 (double pitch, double roll) {
+    uint8_t zone_count[4] = {0};
+
+    // Compute neighbours
+    for (int i = 0; i < (4 * IMU_TRAINING_SAMPLE_BUF_SIZE); ++i) {
+
+        // Get the corresponding trained sample
+        trained_data_t *t = g_trained_data + i;
+
+        // Compute the euclidean distance
+        g_neighbors[i] = (neighbor_t) {
+            .distance = calculate_distance(pitch, roll, t->pitch, t->roll),
+            .brush_zone = t->brush_zone
+        };
+    }
+
+    // Sort the neighbours by smallest distance
+    qsort(g_neighbors, IMU_TRAINING_SAMPLE_BUF_SIZE * 4, sizeof(neighbor_t),
+        compare);
+
+    // Count number of classes appearing in first K 
+    for (int i = 0; i < K_VALUE; ++i) {
+        zone_count[g_neighbors[i].brush_zone]++;
+    }
+
+    // Return majority
+    if (zone_count[0] >= zone_count[1]) {
+        if (zone_count[2] >= zone_count[3]) {
+            return zone_count[0] >= zone_count[2] ? 0 : 2;
+        } else {
+            return zone_count[0] >= zone_count[3] ? 0 : 3;
+        }
+    } else {
+        if (zone_count[2] >= zone_count[3]) {
+            return zone_count[1] >= zone_count[2] ? 1 : 2;
+        } else {
+            return zone_count[1] >= zone_count[3] ? 1 : 3;
+        }     
+    }   
 }
