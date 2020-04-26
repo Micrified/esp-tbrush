@@ -165,6 +165,7 @@ void task_imu (void *args) {
     uint8_t is_pending_training = 0;           // Set to 1 if training pending
     uint8_t is_pending_reset = 0;              // Set to 1 if reset pending
     uint16_t skip_counter = 0;                 // Counter for skipping samples during train
+
 	// Initialize the event-queue
 	if ((g_gpio_event_queue = xQueueCreate(IMU_INTERRUPT_QUEUE_SIZE,
 		sizeof(uint32_t))) == NULL) {

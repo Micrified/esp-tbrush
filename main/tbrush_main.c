@@ -175,6 +175,9 @@ void app_main (void) {
         ESP_LOGI("Startup", "Launched " IMU_TASK_NAME);
     }
 
+    // Raise the priority of the IMU task
+    vTaskPrioritySet(imu_task_handle, tskIDLE_PRIORITY + 2);
+
     // Create the UI task pinned to core
     if (xTaskCreatePinnedToCore(task_ui, UI_TASK_NAME, UI_TASK_STACK_SIZE, NULL,
         UI_TASK_PRIORITY, &ui_task_handle, PROTOCOL_CORE) != pdPASS) {

@@ -157,27 +157,30 @@ trained_data_t g_results[IMU_BRUSHING_SAMPLE_SIZE * 4];
 void process_data_queue (brush_mode_t mode) {
 	esp_err_t err;
 	mpu6050_data_t data;
-	msg_t msg;
-	uint8_t buffer[sizeof(msg_t)];
+	uint8_t buffer[7] = {MSG_START_BYTE, MSG_START_BYTE, MESSAGE_TYPE_STATUS, 
+		0x0, 0x0, 0x0, 0x0}; // Mode, Zone, Rate, Progress
 	static uint16_t n = 0;
 
 	// While there exists processed data to transmit
 	while (xQueueReceive(g_raw_data_queue, &data, 0) == pdPASS) {
 
-		// New entry into g_test_class
-		//g_results[n].pitch = calculate_pitch(&data);
-		//g_results[n].roll  = calculate_roll(&data);
-		//g_results[n].brush_zone = classify_rt(&data);
-		// printf("%d. %d %d %d %d %d %d (.pitch = %f, .roll = %f, .class = %d)\n",
-		// 	n, 
-		// 	data.ax, data.ay, data.az,
-		// 	data.gx, data.gy, data.gz,
-		// 	calculate_pitch(&data),
-		// 	calculate_roll(&data),
-		//	classify_rt(&data));
-		printf("%d\n", classify_rt(&data));
+		// Classify the data
+		brush_zone_t zone = classify_rt(&data);
+		printf("%d\n", zone);
+
 		// Increment the sample number
 		n++;
+
+		// Every 4th element send an update
+		if ((n % 4) == 0) {
+
+			// Update message fields
+			buffer[3] = mode;
+			buffer[4] = zone;
+			buffer[6] = n / 16;
+
+			enqueue_msg(g_ble_tx_queue, buffer, 7);
+		}
 
 
 		// ESP_LOGW(CTRL_TASK_NAME, "Zone: %d", z);
